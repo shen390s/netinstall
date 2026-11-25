@@ -114,11 +114,11 @@
 ## 5. Documentation
 
 - [ ] 5. Documentation
-- [ ] 5.1 README
+- [x] 5.1 README
   - Write the project overview, prerequisites, build instructions for the three images, and a quick boot-start pointer
   - Done when a reader can build and boot all three images from the README alone
   - _Depends: 3.5_
-- [ ] 5.2 User guide
+- [x] 5.2 User guide
   - Write the operator walkthrough: the three boot methods, every menu field (disk, OS, credentials, network/proxy), the stage sequence, and rescue/troubleshooting
   - Done when an operator can complete a deployment and recover a failed one using the guide
   - _Depends: 3.5_
