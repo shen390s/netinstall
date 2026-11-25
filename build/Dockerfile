@@ -38,7 +38,8 @@ RUN apk add --no-cache \
     alpine-conf=3.19.2-r0 \
     patch=2.7.6-r10 \
     busybox=1.37.0-r14 \
-    busybox-extras=1.37.0-r14
+    busybox-extras=1.37.0-r14 \
+    squashfs-tools=4.6.1-r1
 
 # Pre-build a minimal initramfs from the bundled linux-lts kernel so the image
 # is self-contained and the VM-runner boot test has a known-good artifact.
@@ -50,6 +51,18 @@ RUN KVER="$(ls /lib/modules | head -n1)" \
     && echo "building initramfs (base) for kernel: $KVER" \
     && mkinitfs -F base -o /boot/initramfs-lts "$KVER" \
     && ls -l /boot/
+
+# Pre-build the modloop (squashfs of the bundled kernel modules) so build.sh has
+# a ready /boot/modloop-lts. Structure matches the Alpine modloop service
+# (mount at /.modloop, symlink /lib/modules -> /.modloop/modules): squashfs root
+# contains modules/<kver>/.
+RUN KVER="$(ls /lib/modules | head -n1)" \
+    && _stage="$(mktemp -d)" \
+    && mkdir -p "$_stage/modules/$KVER" \
+    && cp -a "/lib/modules/$KVER/." "$_stage/modules/$KVER/" \
+    && mksquashfs "$_stage" /boot/modloop-lts -noappend -comp xz -no-progress \
+    && rm -rf "$_stage" \
+    && ls -l /boot/modloop-lts
 
 # Self-test scripts: assert the toolchain is present/versioned and that the VM
 # runner boots a test image.
