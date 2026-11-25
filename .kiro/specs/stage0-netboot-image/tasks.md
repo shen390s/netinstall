@@ -15,7 +15,7 @@
   - Define the cross-stage configuration schema (disk, OS, credentials, network, proxy, access) and the catalog of supported OS/version entries
   - Done when the schema validates a sample config and rejects a malformed one, and the catalog lists each supported OS entry
   - _Requirements: 2.2, 4.1_
-- [ ] 1.4 Shared helper libraries
+- [x] 1.4 Shared helper libraries
   - Implement network bring-up, disk enumeration/identity, and proxy environment construction as reusable helpers
   - Done when each helper can be exercised from a shell and returns the expected result
   - _Requirements: 3.1, 8.2_
