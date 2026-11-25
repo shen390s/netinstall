@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "meta": {
+    "lastScanned": "2026-11-25T09:10:15.684Z",
+    "fileCount": 22,
+    "hits": 0,
+    "misses": 0,
+    "renderedHash": "ba7e34b7a0503e9fb83b6ac9a1cdaf940283478162c29d65872945b54b78c182",
+    "storeUpdatedAt": "2026-11-25T09:10:15.684Z",
+    "rootHash": "a98e0da839ca33e3"
+  },
+  "files": {
+    ".gitignore": {
+      "description": "Git ignore rules",
+      "tokens": 1,
+      "hash": "4600d1eadad61579",
+      "size": 3,
+      "mtimeMs": 1795592319867.868,
+      "updatedAt": "2026-11-25T09:10:15.676Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/design.md": {
+      "description": "Design Document Template",
+      "tokens": 3303,
+      "hash": "8dcaf9ce659b862a",
+      "size": 13307,
+      "mtimeMs": 1795593526081.5757,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/init.json": {
+      "description": "",
+      "tokens": 125,
+      "hash": "dfc07543fb08e2f4",
+      "size": 437,
+      "mtimeMs": 1795593526082.2986,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/requirements-init.md": {
+      "description": "Requirements Document",
+      "tokens": 40,
+      "hash": "ad3f8051e45003cc",
+      "size": 159,
+      "mtimeMs": 1795593526082.5332,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/requirements.md": {
+      "description": "Requirements Document",
+      "tokens": 325,
+      "hash": "876aed0185db39e9",
+      "size": 1297,
+      "mtimeMs": 1795593526082.862,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/research.md": {
+      "description": "Research & Design Decisions Template",
+      "tokens": 586,
+      "hash": "a77becba2f120a2d",
+      "size": 2355,
+      "mtimeMs": 1795593526083.1265,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/specs/tasks.md": {
+      "description": "Implementation Plan",
+      "tokens": 323,
+      "hash": "18dbd31931ef1c32",
+      "size": 1291,
+      "mtimeMs": 1795593526083.3645,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering/product.md": {
+      "description": "Product Overview",
+      "tokens": 89,
+      "hash": "f233ba3cebcaa4e8",
+      "size": 355,
+      "mtimeMs": 1795593526084.8953,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering/structure.md": {
+      "description": "Project Structure",
+      "tokens": 218,
+      "hash": "2d4ea086e3619750",
+      "size": 871,
+      "mtimeMs": 1795593526085.3416,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering/tech.md": {
+      "description": "Technology Stack",
+      "tokens": 198,
+      "hash": "ab20caddc4a2361e",
+      "size": 792,
+      "mtimeMs": 1795593526085.5696,
+      "updatedAt": "2026-11-25T09:10:15.677Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/api-standards.md": {
+      "description": "API Standards",
+      "tokens": 415,
+      "hash": "c091a4579807ffcf",
+      "size": 1662,
+      "mtimeMs": 1795593526083.3645,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/authentication.md": {
+      "description": "Authentication & Authorization Standards",
+      "tokens": 523,
+      "hash": "061aa606b4bd2ed0",
+      "size": 2089,
+      "mtimeMs": 1795593526083.8303,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/database.md": {
+      "description": "Database Standards",
+      "tokens": 377,
+      "hash": "b93f66bbed730c78",
+      "size": 1507,
+      "mtimeMs": 1795593526084.04,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/deployment.md": {
+      "description": "Deployment Standards",
+      "tokens": 441,
+      "hash": "462a787ccc6ac63c",
+      "size": 1782,
+      "mtimeMs": 1795593526084.2603,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/error-handling.md": {
+      "description": "Error Handling Standards",
+      "tokens": 549,
+      "hash": "1a58856c020fd3cb",
+      "size": 2205,
+      "mtimeMs": 1795593526084.475,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/security.md": {
+      "description": "Security Standards",
+      "tokens": 523,
+      "hash": "a00847516d574e6e",
+      "size": 2092,
+      "mtimeMs": 1795593526084.6853,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/settings/templates/steering-custom/testing.md": {
+      "description": "Testing Standards",
+      "tokens": 325,
+      "hash": "e5679d6769bddd19",
+      "size": 1297,
+      "mtimeMs": 1795593526084.8953,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/specs/stage0-netboot-image/design.md": {
+      "description": "Design Document — stage0-netboot-image",
+      "tokens": 5926,
+      "hash": "28db396952c1a05b",
+      "size": 24120,
+      "mtimeMs": 1795597769601.548,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/specs/stage0-netboot-image/requirements.md": {
+      "description": "Requirements Document",
+      "tokens": 2083,
+      "hash": "8b14e1d7cee0a7ff",
+      "size": 8334,
+      "mtimeMs": 1795595039967.8545,
+      "updatedAt": "2026-11-25T09:10:15.678Z",
+      "source": "scan"
+    },
+    ".kiro/specs/stage0-netboot-image/research.md": {
+      "description": "Research & Design Decisions Template",
+      "tokens": 2900,
+      "hash": "17bd8de4037cfbed",
+      "size": 11634,
+      "mtimeMs": 1795596893347.681,
+      "updatedAt": "2026-11-25T09:10:15.679Z",
+      "source": "scan"
+    },
+    ".kiro/specs/stage0-netboot-image/spec.json": {
+      "description": "",
+      "tokens": 130,
+      "hash": "d40ea01491fa54cc",
+      "size": 455,
+      "mtimeMs": 1795597814618.0344,
+      "updatedAt": "2026-11-25T09:10:15.679Z",
+      "source": "scan"
+    },
+    "CLAUDE.md": {
+      "description": "OpenWolf",
+      "tokens": 1278,
+      "hash": "8bced7f8c4afc8a1",
+      "size": 5128,
+      "mtimeMs": 1795593746218.8525,
+      "updatedAt": "2026-11-25T09:10:15.679Z",
+      "source": "scan"
+    }
+  },
+  "preamble": [
+    "> Project structure index. Pending initial scan."
+  ]
+}
