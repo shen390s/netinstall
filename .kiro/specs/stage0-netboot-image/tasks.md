@@ -84,7 +84,7 @@
   - Done when a built initramfs contains every payload script and tool and boots into the stage0 menu
   - _Depends: 3.2_
   - _Requirements: 1.2_
-- [ ] 3.4 Boot configurations
+- [x] 3.4 Boot configurations
   - Author the network-boot script, the DHCP/TFTP configuration with firmware-based selection, and the bootloader menu used by the ISO and USB images
   - Done when each configuration chain-loads the same kernel, initramfs, and module bundle for both BIOS and UEFI
   - _Requirements: 1.3_

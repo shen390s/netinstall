@@ -1,0 +1,23 @@
+#!ipxe
+# stage0 netboot menu — iPXE script (task 3.4, stage0-netboot-image).
+#
+# Loads the SAME stage0 artifacts as the ISO/USB grub.cfg menu:
+#   vmlinuz-lts         Alpine -lts kernel
+#   initramfs-stage0    custom stage0 initramfs (built by task 3.3)
+#   modloop-lts         Alpine -lts module bundle
+#
+# The HTTP server URL is derived from the DHCP next-server (the dnsmasq host
+# that also serves TFTP), so this one script works unchanged for both BIOS and
+# UEFI clients. The kernel cmdline carries the Alpine boot tokens:
+#   alpine_repo=<url>   apk repository root (self-contained here)
+#   modloop=<url>       module loopback squashfs
+#
+# The build assembly (task 3.5) publishes vmlinuz-lts, initramfs-stage0, and
+# modloop-lts at this URL root on the HTTP server.
+
+dhcp
+set base-url http://${net0/next-server}/
+
+kernel ${base-url}vmlinuz-lts alpine_repo=${base-url} modloop=${base-url}modloop-lts
+initrd ${base-url}initramfs-stage0
+boot
