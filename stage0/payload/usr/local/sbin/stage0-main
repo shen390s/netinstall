@@ -1,0 +1,201 @@
+#!/bin/sh
+# stage0-main — Stage0 Orchestrator (stage0-netboot-image, task 3.2)
+#
+# Boot entrypoint that wires the existing stage0 components into the deployment
+# flow:
+#
+#   1. detect firmware (bios/uefi)  — /sys/firmware/efi presence, or STAGE0_FIRMWARE
+#   2. bring up the network          — delegates to lib/net.sh (net_commands)
+#   3. run the menu                  — obtains the confirmed DeploymentConfig
+#   4. on confirmation only:         — disk-prep -> stage1-install -> reboot
+#
+# The full-wipe confirmation is the ONLY path to disk-prep. If the menu fails,
+# aborts, or the wipe is not confirmed, the orchestrator drops to the rescue
+# shell and never touches the disk (requirement 1.4). After stage1 install it
+# reboots into the disk-installed minimal system (requirement 7.3).
+#
+# A thin execution wrapper makes the whole flow testable:
+#   DRY_RUN=1 prints the ordered sequence (and the generated component
+#   commands) without executing any component. With DRY_RUN unset the
+#   components run in order; a failed step drops to rescue and never proceeds
+#   to a later destructive step.
+#
+# Overridable seams (env):
+#   STAGE0_FIRMWARE         firmware override ("bios"|"uefi"); else detected
+#   STAGE0_EFI_SYS          EFI marker dir (default /sys/firmware/efi)
+#   STAGE0_NET_LIB          net.sh path (default /usr/local/sbin/lib/net.sh)
+#   STAGE0_NET_IFACE        boot interface (default eth0)
+#   STAGE0_NET_MODE         boot bring-up mode (default dhcp)
+#   STAGE0_MENU             menu command (default /usr/local/sbin/menu)
+#   STAGE0_CONFIG           DeploymentConfig path (default /etc/netinstall/config.json)
+#   STAGE0_DISK_PREP        disk-prep command (default /usr/local/sbin/disk-prep)
+#   STAGE0_STAGE1_INSTALL   stage1-install command (default /usr/local/sbin/stage1-install)
+#   STAGE0_SYSROOT          stage1 sysroot (default /mnt)
+#   STAGE0_RESCUE           rescue command (default /usr/local/sbin/rescue)
+#   STAGE0_REBOOT           reboot command (default reboot)
+#
+# All functions are POSIX sh (busybox ash compatible); no bashisms.
+
+STAGE0_FIRMWARE=${STAGE0_FIRMWARE:-}
+STAGE0_EFI_SYS=${STAGE0_EFI_SYS:-/sys/firmware/efi}
+STAGE0_NET_LIB=${STAGE0_NET_LIB:-/usr/local/sbin/lib/net.sh}
+STAGE0_NET_IFACE=${STAGE0_NET_IFACE:-eth0}
+STAGE0_NET_MODE=${STAGE0_NET_MODE:-dhcp}
+STAGE0_NET_IPV4=${STAGE0_NET_IPV4:-}
+STAGE0_NET_GATEWAY=${STAGE0_NET_GATEWAY:-}
+STAGE0_NET_DNS=${STAGE0_NET_DNS:-}
+STAGE0_MENU=${STAGE0_MENU:-/usr/local/sbin/menu}
+STAGE0_CONFIG=${STAGE0_CONFIG:-/etc/netinstall/config.json}
+STAGE0_DISK_PREP=${STAGE0_DISK_PREP:-/usr/local/sbin/disk-prep}
+STAGE0_STAGE1_INSTALL=${STAGE0_STAGE1_INSTALL:-/usr/local/sbin/stage1-install}
+STAGE0_SYSROOT=${STAGE0_SYSROOT:-/mnt}
+STAGE0_RESCUE=${STAGE0_RESCUE:-/usr/local/sbin/rescue}
+STAGE0_REBOOT=${STAGE0_REBOOT:-reboot}
+
+# ---------------------------------------------------------------------------
+# Step 1: firmware detection
+# ---------------------------------------------------------------------------
+
+# stage0_detect_firmware
+# Print "bios" or "uefi". A STAGE0_FIRMWARE override wins; otherwise the
+# presence of STAGE0_EFI_SYS (default /sys/firmware/efi) means uefi.
+# Returns non-zero for an invalid override (so the caller can drop to rescue).
+stage0_detect_firmware() {
+    _fw=${STAGE0_FIRMWARE:-}
+    if [ -z "$_fw" ]; then
+        if [ -d "$STAGE0_EFI_SYS" ]; then
+            _fw=uefi
+        else
+            _fw=bios
+        fi
+    fi
+    case "$_fw" in
+        bios|uefi) printf '%s\n' "$_fw"; return 0 ;;
+        *) printf 'stage0: invalid firmware [%s] (expected bios|uefi)\n' "$_fw" >&2; return 1 ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# Step 2: network bring-up (delegates to net.sh)
+# ---------------------------------------------------------------------------
+
+# stage0_net_up
+# Source the net helper and emit (and, unless DRY_RUN=1, execute) the commands
+# that bring the boot interface up. Reuses net_commands verbatim.
+stage0_net_up() {
+    [ -r "$STAGE0_NET_LIB" ] || {
+        printf 'stage0: cannot load net helper (%s)\n' "$STAGE0_NET_LIB" >&2
+        return 1
+    }
+    . "$STAGE0_NET_LIB"
+    _cmds=$(net_commands "$STAGE0_NET_IFACE" "$STAGE0_NET_MODE" \
+        "$STAGE0_NET_IPV4" "$STAGE0_NET_GATEWAY" "$STAGE0_NET_DNS") || {
+        printf 'stage0: network bring-up failed (iface/mode invalid)\n' >&2
+        return 1
+    }
+    printf '%s\n' "$_cmds"
+    [ "${DRY_RUN:-0}" = 1 ] && return 0
+    printf '%s\n' "$_cmds" | sh -e
+}
+
+# ---------------------------------------------------------------------------
+# DeploymentConfig read (the stage0->stage1 data contract, not a component)
+# ---------------------------------------------------------------------------
+
+# stage0_config_disk_id <config>
+# Print the confirmed targetDisk.id from the DeploymentConfig JSON, or nothing
+# + non-zero when it is absent/unreadable.
+stage0_config_disk_id() {
+    _cfg=${1:-}
+    [ -n "$_cfg" ] && [ -r "$_cfg" ] || return 1
+    _id=$(sed -n 's/.*"targetDisk":{"id":"\([^"]*\)".*/\1/p' "$_cfg" | head -n 1)
+    [ -n "$_id" ] || return 1
+    printf '%s\n' "$_id"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Thin execution wrapper: print in DRY_RUN, execute otherwise
+# ---------------------------------------------------------------------------
+
+# stage0_run <label> <command...>
+# With DRY_RUN=1 print the command instead of running it (and succeed).
+stage0_run() {
+    _label=$1; shift
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+        printf '[dry-run] %s: %s\n' "$_label" "$*"
+        return 0
+    fi
+    "$@"
+}
+
+# stage0_rescue
+# Drop to the rescue shell. In production `rescue` execs a shell and never
+# returns; under test it may return so the caller can observe the failure.
+stage0_rescue() {
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+        printf '[dry-run] rescue: %s\n' "$STAGE0_RESCUE"
+        return 0
+    fi
+    printf 'stage0: entering rescue shell (no disk write)\n' >&2
+    "$STAGE0_RESCUE"
+}
+
+# stage0_reboot
+# Reboot into the disk-installed stage1 (requirement 7.3). Final step.
+stage0_reboot() {
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+        printf '[dry-run] reboot: %s\n' "$STAGE0_REBOOT"
+        return 0
+    fi
+    "$STAGE0_REBOOT"
+}
+
+# ---------------------------------------------------------------------------
+# Core: the orchestrated flow
+# ---------------------------------------------------------------------------
+
+stage0_main() {
+    # 1) Firmware.
+    _firmware=$(stage0_detect_firmware) || { stage0_rescue; return 1; }
+
+    # 2) Network.
+    stage0_net_up || { stage0_rescue; return 1; }
+
+    # 3) Menu -> confirmed DeploymentConfig. Any abort/failure here means the
+    #    wipe is not confirmed, so there is no path to disk-prep.
+    if ! stage0_run menu "$STAGE0_MENU" "$STAGE0_CONFIG"; then
+        printf 'stage0: menu aborted or failed; entering rescue (no disk write)\n' >&2
+        stage0_rescue
+        return 1
+    fi
+
+    # 4) The confirmation gate is the ONLY path to the disk-touching steps.
+    _disk_id=$(stage0_config_disk_id "$STAGE0_CONFIG") || {
+        printf 'stage0: confirmed config missing targetDisk.id; entering rescue\n' >&2
+        stage0_rescue
+        return 1
+    }
+
+    # 5) Disk provision (only with a confirmed disk + firmware).
+    stage0_run disk-prep "$STAGE0_DISK_PREP" "$_disk_id" "$_firmware" || {
+        printf 'stage0: disk prep failed; entering rescue\n' >&2
+        stage0_rescue
+        return 1
+    }
+
+    # 6) Stage1 install (only after disk prep succeeded).
+    stage0_run stage1-install "$STAGE0_STAGE1_INSTALL" "$STAGE0_SYSROOT" "$STAGE0_CONFIG" || {
+        printf 'stage0: stage1 install failed; entering rescue\n' >&2
+        stage0_rescue
+        return 1
+    }
+
+    # 7) Reboot into stage1 (final step).
+    stage0_reboot
+}
+
+# Run only when executed as `stage0-main` (not when sourced by a test).
+case "$(basename "$0")" in
+    stage0-main) stage0_main "$@" ;;
+esac

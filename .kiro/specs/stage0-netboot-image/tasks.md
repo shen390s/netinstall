@@ -73,7 +73,7 @@
   - Done when the disk-installed system contains all injected artifacts and boots to a ready firstboot
   - _Depends: 2.2, 2.3, 2.4, 2.6_
   - _Requirements: 7.1_
-- [ ] 3.2 Stage0 orchestrator
+- [x] 3.2 Stage0 orchestrator
   - Detect firmware and bring up the network, then drive menu → disk provision → stage1 install → reboot
   - Gate every disk-touching step behind confirmation and drop to rescue on boot/menu failure without writing
   - Done when the full stage0 flow runs in order and never writes before confirmation
@@ -127,3 +127,4 @@
 
 - Stage1 firstboot (2.6) assumes the reinstall bundle lands at `/usr/local/sbin/reinstall.sh` and the adapter at `/usr/local/sbin/reinstall-adapter` (both overridable via `NETINSTALL_REINSTALL`/`NETINSTALL_ADAPTER`). Task 3.1 (Stage1 installer) must inject the bundle at those paths or bake the overrides into the firstboot environment.
 - `disk-prep` (2.3) and `stage1.start` (2.6) are authored as sourced libraries/scripts; task 3.3 (initramfs feature) must ensure payload scripts are executable (+x) where they are invoked as commands.
+- `menu` (2.1), `disk-prep` (2.3), and `rescue` (2.5) are committed 0644 (no +x), but `stage0-main` (3.2) invokes them as commands — task 3.3 must `chmod +x` them in the baked payload. `stage0-main`, `stage1-install`, and `stage1.start` already carry +x.
