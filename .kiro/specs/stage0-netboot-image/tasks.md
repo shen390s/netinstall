@@ -101,7 +101,7 @@
   - Cover config-to-command-line mapping for each OS category, schema validation, and proxy environment construction
   - Done when the unit suite passes
   - _Requirements: 4.2, 2.2, 8.2_
-- [ ] 4.2 Integration tests
+- [x] 4.2 Integration tests
   - Cover disk installation on a loop device, stage1 artifact injection, and the proxy patch application
   - Done when the integration suite passes in the build container
   - _Requirements: 6.1, 7.1, 8.2_

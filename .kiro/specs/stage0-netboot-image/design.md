@@ -444,7 +444,7 @@ Derived from the acceptance criteria.
   2. `config.schema.json` validation — accept valid configs, reject invalid/missing fields (2.2, 5.1, 8.1).
   3. Proxy env construction, including `no_proxy` and `github_proxy` (8.2).
 - **Integration Tests**
-  1. `disk-prep` on a loop device — partition layout + grub install for both `i386-pc` and `x86_64-efi` (6.1, 6.2).
+  1. `disk-prep` — run the real command and assert `setup-disk` is invoked with valid syntax (no `Illegal option`); full partition + grub install for `i386-pc`/`x86_64-efi` is deferred to E2E, because Alpine `setup-disk` excludes loop devices (6.1, 6.2).
   2. `stage1-install` chroot injection — config.json, firstboot, reinstall bundle land at the correct paths (7.1).
   3. `proxy-env.patch` applies cleanly to the pinned `reinstall.sh`; the injected init hook exports the proxy vars (8.2).
 - **E2E Tests (QEMU/KVM)**
