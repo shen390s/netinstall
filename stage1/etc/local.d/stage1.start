@@ -1,0 +1,99 @@
+#!/bin/sh
+# stage1.start — Stage1 Firstboot (stage0-netboot-image, task 2.6)
+#
+# OpenRC `local.d` start script for the first boot of the disk-installed
+# minimal system. Non-interactive: it locates the persisted DeploymentConfig,
+# maps it through the Reinstall Adapter (the single owner of the config -> argv
+# mapping), applies the emitted proxy env, and launches the pinned reinstall
+# bundle — with no operator input (no interactive input, no prompt, no TTY).
+#
+# The core is the testable function `stage1_firstboot`. DRY_RUN=1 makes it emit
+# the resolved reinstall.sh argv + proxy env block on stdout (and export the
+# proxy env) without executing reinstall.sh.
+#
+# Overridable seams (env):
+#   NETINSTALL_CONFIG      config path       (default /etc/netinstall/config.json)
+#   NETINSTALL_ADAPTER     adapter path      (default /usr/local/sbin/reinstall-adapter)
+#   NETINSTALL_REINSTALL   reinstall.sh path (default /usr/local/sbin/reinstall.sh)
+#   NETINSTALL_SERIAL_DEV  serial device     (default /dev/console)
+#   DRY_RUN=1              emit, don't exec
+#
+# Requirement coverage: 7.2 (auto-start install on next boot), 9.2 (no operator
+# input after reboot into the minimal system).
+#
+# All POSIX sh (busybox ash compatible); no bashisms. The adapter owns the whole
+# config -> argv/env mapping; this script only splits stdout into argv (line 1)
+# and proxy env (lines 2..N) exactly as the adapter contract specifies.
+
+NETINSTALL_CONFIG=${NETINSTALL_CONFIG:-/etc/netinstall/config.json}
+NETINSTALL_ADAPTER=${NETINSTALL_ADAPTER:-/usr/local/sbin/reinstall-adapter}
+NETINSTALL_REINSTALL=${NETINSTALL_REINSTALL:-/usr/local/sbin/reinstall.sh}
+NETINSTALL_SERIAL_DEV=${NETINSTALL_SERIAL_DEV:-/dev/console}
+
+# stage1_log <message>
+# Write a single progress/error line to the serial console. Never blocks: falls
+# back to stderr if the serial device is unavailable, so failure reporting
+# cannot hang the boot.
+stage1_log() {
+    _msg=${1:-}
+    [ -n "$_msg" ] || return 1
+    if printf '[stage1] %s\n' "$_msg" >> "$NETINSTALL_SERIAL_DEV" 2>/dev/null; then
+        return 0
+    fi
+    printf '[stage1] %s\n' "$_msg" >&2
+    return 0
+}
+
+# stage1_firstboot
+# Locate config -> invoke adapter -> apply proxy env -> exec reinstall.sh.
+# DRY_RUN=1 emits the resolved argv/env and exports the proxy env but does not
+# exec reinstall.sh. Fail-closed (non-zero, no hang) on a missing config or a
+# failing adapter.
+stage1_firstboot() {
+    _config=${NETINSTALL_CONFIG:-/etc/netinstall/config.json}
+    _adapter=${NETINSTALL_ADAPTER:-/usr/local/sbin/reinstall-adapter}
+    _reinstall=${NETINSTALL_REINSTALL:-/usr/local/sbin/reinstall.sh}
+
+    # 1. Config must be present and accessible; otherwise fail closed.
+    [ -r "$_config" ] || {
+        stage1_log "config not found or not accessible: $_config"
+        return 1
+    }
+
+    # 2. Reuse the adapter for the whole config -> argv/env mapping. Its stdout
+    #    is: line 1 = reinstall.sh argv; lines 2..N = proxy env block.
+    _out=$("$_adapter" "$_config") || {
+        _st=$?
+        stage1_log "reinstall-adapter failed (status $_st)"
+        return "$_st"
+    }
+    _argv_line=$(printf '%s\n' "$_out" | sed -n '1p')
+    _env_block=$(printf '%s\n' "$_out" | sed '1d')
+    [ -n "$_argv_line" ] || {
+        stage1_log "reinstall-adapter emitted no argv"
+        return 1
+    }
+
+    # 3. Emit the resolved argv/env (observability + DRY_RUN seam).
+    printf '%s\n' "$_argv_line"
+    if [ -n "$_env_block" ]; then
+        printf '%s\n' "$_env_block"
+    fi
+
+    # 4. Apply the proxy env the adapter emitted.
+    if [ -n "$_env_block" ]; then
+        eval "$_env_block"
+    fi
+
+    # 5. Launch the pinned reinstall bundle with the resolved argv. DRY_RUN=1
+    #    stops here (emit-only, no exec).
+    [ "${DRY_RUN:-0}" = 1 ] && return 0
+    eval "set -- $_argv_line"
+    exec "$_reinstall" "$@"
+}
+
+# Run only when executed by OpenRC as `stage1.start` (not when sourced by a
+# test). OpenRC runs executable local.d scripts as `stage1.start start`.
+case "${0##*/}" in
+    stage1.start) stage1_firstboot "$@" ;;
+esac

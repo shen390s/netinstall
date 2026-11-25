@@ -57,7 +57,7 @@
   - _Boundary: Rescue & Observability_
   - _Depends: 1.1_
   - _Requirements: 10.1, 10.2, 10.3_
-- [ ] 2.6 (P) Stage1 firstboot
+- [x] 2.6 (P) Stage1 firstboot
   - On the first boot of the disk-installed minimal system, read the config and auto-run the OS-install tool with no operator input
   - Implement against the Reinstall Adapter's documented config-to-command contract rather than duplicating the mapping
   - Done when the firstboot script runs the install unattended from a validated config
@@ -122,3 +122,8 @@
   - Write the operator walkthrough: the three boot methods, every menu field (disk, OS, credentials, network/proxy), the stage sequence, and rescue/troubleshooting
   - Done when an operator can complete a deployment and recover a failed one using the guide
   - _Depends: 3.5_
+
+## Implementation Notes
+
+- Stage1 firstboot (2.6) assumes the reinstall bundle lands at `/usr/local/sbin/reinstall.sh` and the adapter at `/usr/local/sbin/reinstall-adapter` (both overridable via `NETINSTALL_REINSTALL`/`NETINSTALL_ADAPTER`). Task 3.1 (Stage1 installer) must inject the bundle at those paths or bake the overrides into the firstboot environment.
+- `disk-prep` (2.3) and `stage1.start` (2.6) are authored as sourced libraries/scripts; task 3.3 (initramfs feature) must ensure payload scripts are executable (+x) where they are invoked as commands.
