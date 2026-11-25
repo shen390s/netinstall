@@ -57,4 +57,12 @@ COPY test-tools.sh /usr/local/bin/test-tools
 COPY test-qemu-boot.sh /usr/local/bin/test-qemu-boot
 RUN chmod +x /usr/local/bin/test-tools /usr/local/bin/test-qemu-boot
 
+# iPXE chainloaders for PXE netboot. Alpine has no `ipxe` package, so fetch the
+# official prebuilt binaries (BIOS undionly.kpxe + x86-64 UEFI ipxe.efi) and
+# place them where build.sh's IPXE_BIOS/IPXE_EFI seams default.
+RUN mkdir -p /usr/share/ipxe \
+    && wget -O /usr/share/ipxe/undionly.kpxe https://boot.ipxe.org/undionly.kpxe \
+    && wget -O /usr/share/ipxe/ipxe.efi https://boot.ipxe.org/x86_64-efi/ipxe.efi \
+    && ls -l /usr/share/ipxe/
+
 CMD ["sh"]

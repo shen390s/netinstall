@@ -88,7 +88,7 @@
   - Author the network-boot script, the DHCP/TFTP configuration with firmware-based selection, and the bootloader menu used by the ISO and USB images
   - Done when each configuration chain-loads the same kernel, initramfs, and module bundle for both BIOS and UEFI
   - _Requirements: 1.3_
-- [ ] 3.5 Build assembly
+- [x] 3.5 Build assembly
   - Assemble the stage0 payload into three bootable forms — network boot, hybrid ISO, and raw USB image — for both BIOS and UEFI
   - Done when all three artifacts build and boot the menu
   - _Depends: 3.3, 3.4_
