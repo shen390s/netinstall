@@ -97,7 +97,7 @@
 ## 4. Validation
 
 - [ ] 4. Validation
-- [ ] 4.1 Unit tests
+- [x] 4.1 Unit tests
   - Cover config-to-command-line mapping for each OS category, schema validation, and proxy environment construction
   - Done when the unit suite passes
   - _Requirements: 4.2, 2.2, 8.2_
