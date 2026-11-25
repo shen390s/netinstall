@@ -59,7 +59,9 @@
 /usr/sbin/dropbear
 /usr/bin/dropbearkey
 # HTTP progress log (busybox httpd applet / busybox-extras)
-/usr/bin/httpd
+/usr/sbin/httpd
 # disk install + proxy-patch helpers (alpine-conf setup-disk; patch)
-/sbin/setup-disk
+/usr/sbin/setup-disk
 /usr/bin/patch
+# ncurses terminfo database (so the dialog menu renders in the booted image)
+/etc/terminfo

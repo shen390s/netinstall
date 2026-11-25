@@ -94,9 +94,10 @@ required_paths="
 /usr/lib/grub/x86_64-efi/
 /usr/sbin/dropbear
 /usr/bin/dropbearkey
-/usr/bin/httpd
-/sbin/setup-disk
+/usr/sbin/httpd
+/usr/sbin/setup-disk
 /usr/bin/patch
+/etc/terminfo
 "
 
 for p in $required_paths; do
