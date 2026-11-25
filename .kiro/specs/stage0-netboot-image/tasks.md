@@ -31,7 +31,7 @@
   - _Boundary: Configuration Menu_
   - _Depends: 1.3, 1.4_
   - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 4.1, 5.1, 8.1_
-- [ ] 2.2 (P) Reinstall adapter and proxy patch
+- [x] 2.2 (P) Reinstall adapter and proxy patch
   - Translate a validated config into the OS-install tool's command line and environment, driven by the OS catalog
   - Map credentials and access options to the tool's flags, and own the pinned bundle plus a patch that makes the tool forward proxy environment into its internal install environment
   - Done when a config for each OS category emits the expected command line and environment, an unsupported OS is rejected, and the patch applies cleanly and forwards the proxy variables

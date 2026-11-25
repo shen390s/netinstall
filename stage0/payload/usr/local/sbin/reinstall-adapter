@@ -1,0 +1,184 @@
+#!/bin/sh
+# reinstall-adapter — DeploymentConfig → reinstall.sh argv + proxy env (task 2.2)
+#
+# Translates a validated DeploymentConfig into the argv/env that stage1 passes
+# to the pinned reinstall bundle. Owns the pinned bundle + proxy patch.
+#
+# Contract:
+#
+#     map_config_to_reinstall <config.json>
+#
+# emits on stdout:
+#     line 1      : the complete reinstall.sh argv — the os-catalog positional
+#                   args + flags, followed by credential/access flags, each token
+#                   shell-quoted (safe to `eval "set -- ..."`).
+#     lines 2..N  : the proxy env block, byte-identical to `proxy_exports`
+#                   (export http_proxy/https_proxy/all_proxy/no_proxy/github_proxy),
+#                   safe to `eval`.
+#
+# On an OS selection absent from the os-catalog it writes a clear message to
+# stderr, emits nothing on stdout, and returns 2 (requirement 4.3). Other input
+# errors return 1.
+#
+# All functions are POSIX sh (busybox ash compatible); no bashisms.
+
+ADAPTER_OS_CATALOG=${ADAPTER_OS_CATALOG:-/etc/netinstall/os-catalog.json}
+ADAPTER_PROXY_LIB=${ADAPTER_PROXY_LIB:-/usr/local/sbin/lib/proxy.sh}
+
+# Reuse the proxy env construction helper (proxy.sh).
+. "$ADAPTER_PROXY_LIB"
+
+# ---------------------------------------------------------------------------
+# JSON extraction helpers (single-line JSON objects, as written by `menu`).
+# ---------------------------------------------------------------------------
+
+# adapter_json_unescape
+# Reverse the JSON string escapes the menu writes (backslash and double-quote).
+adapter_json_unescape() {
+    sed -e 's/\\\\/\\/g' -e 's/\\"/"/g'
+}
+
+# adapter_json_get_str <json> <key>
+# Print the first string value for <key> in <json>, or nothing.
+adapter_json_get_str() {
+    printf '%s\n' "$1" | sed -n "s/.*\"$2\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" \
+        | head -n 1 | adapter_json_unescape
+}
+
+# adapter_json_get_num <json> <key>
+# Print the first integer value for <key> in <json>, or nothing.
+adapter_json_get_num() {
+    printf '%s\n' "$1" | sed -n "s/.*\"$2\":[[:space:]]*\([0-9][0-9]*\).*/\1/p" \
+        | head -n 1
+}
+
+# adapter_json_get_array <json> <key>
+# Print the array body (text between [ and ]) for <key>, or nothing.
+adapter_json_get_array() {
+    printf '%s\n' "$1" | sed -n "s/.*\"$2\":[[:space:]]*\[\(.*\)\].*/\1/p" \
+        | head -n 1
+}
+
+# adapter_json_array_items <array_body>
+# Decode a JSON string-array body into one item per line. The catalog writes
+# `", "` separators and the menu's noProxy array writes `","`; both are
+# normalized to `","` before splitting. Values containing an embedded `","`
+# are unsupported (none occur in either source).
+adapter_json_array_items() {
+    printf '%s\n' "${1:-}" | sed 's/", */","/g' | awk -F'","' '{ for (i=1;i<=NF;i++) print $i }' \
+        | sed -e 's/^"//' -e 's/"$//' | adapter_json_unescape
+}
+
+# adapter_shell_quote <token>
+# Emit <token> as a single shell word. Tokens made only of safe characters are
+# emitted verbatim; anything else (spaces, quotes, empty, metacharacters) is
+# single-quoted with embedded single quotes escaped.
+adapter_shell_quote() {
+    _v=${1:-}
+    case "$_v" in
+        '' | *[!A-Za-z0-9_.:/@%+=,-]*) ;;
+        *) printf '%s' "$_v"; return ;;
+    esac
+    _q=$(printf '%s' "$_v" | sed "s|'|'\\\\''|g")
+    printf "'%s'" "$_q"
+}
+
+# adapter_catalog_argv <category> <distro> <version>
+# Print the argv array body for the matching os-catalog entry, or nothing.
+adapter_catalog_argv() {
+    _cat=$1; _distro=$2; _ver=$3
+    _pat="\"category\": \"$_cat\", \"distro\": \"$_distro\", \"version\": \"$_ver\""
+    _line=$(grep -F "$_pat" "$ADAPTER_OS_CATALOG" | head -n 1)
+    printf '%s\n' "$_line" | sed -n 's/.*"argv": \[\(.*\)\].*/\1/p'
+}
+
+# ---------------------------------------------------------------------------
+# Service: map_config_to_reinstall <config.json>
+# ---------------------------------------------------------------------------
+map_config_to_reinstall() {
+    _config_path=${1:-}
+    [ -n "$_config_path" ] || { echo "reinstall-adapter: config path required" >&2; return 1; }
+    [ -r "$_config_path" ] || { echo "reinstall-adapter: cannot read config: $_config_path" >&2; return 1; }
+    _cfg=$(cat "$_config_path")
+
+    _cat=$(adapter_json_get_str "$_cfg" category)
+    _distro=$(adapter_json_get_str "$_cfg" distro)
+    _ver=$(adapter_json_get_str "$_cfg" version)
+
+    # Reject anything not in the os-catalog (requirement 4.3) before emitting argv.
+    case "$_cat" in
+        linux | windows | dd) ;;
+        *) echo "reinstall-adapter: unsupported os [$_cat/$_distro/$_ver]" >&2; return 2 ;;
+    esac
+    _argv_body=$(adapter_catalog_argv "$_cat" "$_distro" "$_ver")
+    if [ -z "$_argv_body" ]; then
+        echo "reinstall-adapter: unsupported os [$_cat/$_distro/$_ver]" >&2
+        return 2
+    fi
+
+    # os.extra values substituted into catalog placeholders (<imageName>/<lang>/<img>).
+    _image_name=$(adapter_json_get_str "$_cfg" imageName)
+    _lang=$(adapter_json_get_str "$_cfg" lang)
+    _img=$(adapter_json_get_str "$_cfg" img)
+
+    # Build the argv: catalog positional args + flags, then credentials/access.
+    _argv=''
+    _sep=''
+    _old_ifs=$IFS
+    IFS='
+'
+    for _tok in $(adapter_json_array_items "$_argv_body"); do
+        case "$_tok" in
+            '<imageName>') _tok=$_image_name ;;
+            '<lang>')      _tok=$_lang ;;
+            '<img>')       _tok=$_img ;;
+        esac
+        _argv="$_argv$_sep$(adapter_shell_quote "$_tok")"
+        _sep=' '
+    done
+    IFS=$_old_ifs
+
+    _username=$(adapter_json_get_str "$_cfg" username)
+    _password=$(adapter_json_get_str "$_cfg" password)
+    _ssh_key=$(adapter_json_get_str "$_cfg" sshKey)
+    _ssh_port=$(adapter_json_get_num "$_cfg" sshPort)
+    _web_port=$(adapter_json_get_num "$_cfg" webPort)
+    _frpc_config=$(adapter_json_get_str "$_cfg" frpcConfig)
+
+    [ -n "$_username" ] && _argv="$_argv --username $(adapter_shell_quote "$_username")"
+    [ -n "$_password" ] && _argv="$_argv --password $(adapter_shell_quote "$_password")"
+    [ -n "$_ssh_key" ] && _argv="$_argv --ssh-key $(adapter_shell_quote "$_ssh_key")"
+    [ -n "$_ssh_port" ] && _argv="$_argv --ssh-port $_ssh_port"
+    [ -n "$_web_port" ] && _argv="$_argv --web-port $_web_port"
+    [ -n "$_frpc_config" ] && _argv="$_argv --frpc-config $(adapter_shell_quote "$_frpc_config")"
+
+    printf '%s\n' "$_argv"
+
+    # Proxy env block (http_proxy/https_proxy/all_proxy/no_proxy/github_proxy).
+    _proxy_http=$(adapter_json_get_str "$_cfg" http)
+    _proxy_https=$(adapter_json_get_str "$_cfg" https)
+    _proxy_all=$(adapter_json_get_str "$_cfg" all)
+    _proxy_github=$(adapter_json_get_str "$_cfg" githubProxy)
+
+    _no_proxy_args=''
+    _sep=''
+    _old_ifs=$IFS
+    IFS='
+'
+    for _h in $(adapter_json_array_items "$(adapter_json_get_array "$_cfg" noProxy)"); do
+        _no_proxy_args="$_no_proxy_args$_sep$_h"
+        _sep=' '
+    done
+    IFS=$_old_ifs
+
+    # shellcheck disable=SC2086
+    proxy_exports "$_proxy_http" "$_proxy_https" "$_proxy_all" "$_proxy_github" $_no_proxy_args
+    return 0
+}
+
+# Run as a command (not when sourced by a test or by stage1 firstboot).
+case "$(basename "$0")" in
+    reinstall-adapter)
+        map_config_to_reinstall "${1:-}"
+        ;;
+esac

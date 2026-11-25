@@ -1,0 +1,14 @@
+--- a/reinstall/reinstall.sh	2026-11-25 20:12:17.132295447 +0800
++++ b/reinstall/reinstall.sh	2026-11-25 20:12:17.140007584 +0800
+@@ -4596,6 +4596,11 @@
+         [ -d /sys/module/ipv6 ] || modprobe ipv6
+         $(get_ip_conf_cmd)
+         MAC_ADDRESS=1
++        export http_proxy=$http_proxy
++        export https_proxy=$https_proxy
++        export all_proxy=$all_proxy
++        export no_proxy=$no_proxy
++        export github_proxy=$github_proxy
+         return
+ EOF
+ 
