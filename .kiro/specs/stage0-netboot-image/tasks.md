@@ -3,7 +3,7 @@
 ## 1. Foundation
 
 - [ ] 1. Containerized build environment
-- [ ] 1.1 Build the Alpine-based build container with all image tooling and a VM runner
+- [x] 1.1 Build the Alpine-based build container with all image tooling and a VM runner
   - Install and pin the initramfs builder, bootloader, ISO tooling, partition utilities, TUI toolkit, SSH server, and a virtual-machine runner for end-to-end tests
   - Done when the container builds successfully and each tool runs with its expected version; the VM runner can boot a test image
   - _Prerequisite for: 3.5 (build), 4.3 (end-to-end tests)_
