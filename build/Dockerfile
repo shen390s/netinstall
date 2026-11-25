@@ -12,7 +12,10 @@
 #   qemu-system-x86_64  VM runner (end-to-end tests)
 #   linux-lts           bundled kernel (lets mkinitfs build a real initramfs and
 #                       gives the VM runner a self-contained boot test image)
+#   alpine-conf         setup-disk (disk install for stage1)
+#   patch               apply proxy-env.patch to reinstall.sh
 #   busybox             POSIX shell / scripting
+#   busybox-extras      httpd applet (HTTP progress log)
 #
 # The base image is pinned to an immutable Alpine release tag; apk packages are
 # pinned to the exact versions resolved from that release's repositories.
@@ -32,7 +35,10 @@ RUN apk add --no-cache \
     dropbear=2024.86-r0 \
     qemu-system-x86_64=9.1.2-r1 \
     linux-lts=6.12.119-r0 \
-    busybox=1.37.0-r14
+    alpine-conf=3.19.2-r0 \
+    patch=2.7.6-r10 \
+    busybox=1.37.0-r14 \
+    busybox-extras=1.37.0-r14
 
 # Pre-build a minimal initramfs from the bundled linux-lts kernel so the image
 # is self-contained and the VM-runner boot test has a known-good artifact.

@@ -10,6 +10,9 @@
 #   TUI:        dialog
 #   SSH/rescue: dropbear
 #   VM runner:  qemu-system-x86_64
+#   Disk install: setup-disk (alpine-conf)
+#   Patching:  patch
+#   HTTP log:  httpd (busybox-extras)
 #   Scripting:  busybox (POSIX shell)
 #
 # Exit status: 0 when every tool is present and versioned, 1 otherwise.
@@ -63,6 +66,9 @@ check dropbear            dropbear            'dropbear -V'
 check dropbearkey         dropbear            -
 check qemu-system-x86_64  qemu-system-x86_64  'qemu-system-x86_64 --version'
 check busybox             busybox             'busybox 2>&1 | head -n1'
+check setup-disk          alpine-conf         -
+check httpd               busybox-extras      -
+check patch               patch               'patch --version'
 
 echo
 if [ "$fail" -ne 0 ]; then
