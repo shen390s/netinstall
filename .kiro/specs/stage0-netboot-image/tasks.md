@@ -11,7 +11,7 @@
   - Download a specific release of the OS-install tool and its two support scripts, and record the pinned version and checksums
   - Done when the bundle is present with a recorded version and checksums that match the pinned release
   - _Consumed by: 2.2 (adapter), 3.1 (stage1 installer)_
-- [ ] 1.3 DeploymentConfig schema and OS catalog
+- [x] 1.3 DeploymentConfig schema and OS catalog
   - Define the cross-stage configuration schema (disk, OS, credentials, network, proxy, access) and the catalog of supported OS/version entries
   - Done when the schema validates a sample config and rejects a malformed one, and the catalog lists each supported OS entry
   - _Requirements: 2.2, 4.1_

@@ -1,0 +1,20 @@
+{
+  "reinstallVersion": "d9ede3db41ddbf0a026a7109f2d1a469375eaaad",
+  "description": "Maps {category, distro, version} selections to reinstall.sh argv fragments. Placeholders in angle brackets are substituted from DeploymentConfig.os.extra by the reinstall adapter.",
+  "entries": [
+    { "category": "linux", "distro": "debian", "version": "12", "argv": ["debian", "12"] },
+    { "category": "linux", "distro": "debian", "version": "13", "argv": ["debian", "13"] },
+    { "category": "linux", "distro": "ubuntu", "version": "24.04", "argv": ["ubuntu", "24.04"] },
+    { "category": "linux", "distro": "ubuntu", "version": "24.04-minimal", "argv": ["ubuntu", "24.04", "--minimal"] },
+    { "category": "linux", "distro": "ubuntu", "version": "22.04", "argv": ["ubuntu", "22.04"] },
+    { "category": "linux", "distro": "alpine", "version": "3.21", "argv": ["alpine", "3.21"] },
+    { "category": "linux", "distro": "alpine", "version": "3.22", "argv": ["alpine", "3.22"] },
+    { "category": "linux", "distro": "rocky", "version": "9", "argv": ["rocky", "9"] },
+    { "category": "linux", "distro": "centos", "version": "10", "argv": ["centos", "10"] },
+    { "category": "linux", "distro": "fedora", "version": "45", "argv": ["fedora", "45"] },
+    { "category": "linux", "distro": "arch", "version": "latest", "argv": ["arch"] },
+    { "category": "linux", "distro": "opensuse", "version": "tumbleweed", "argv": ["opensuse", "tumbleweed"] },
+    { "category": "windows", "distro": "windows", "version": "any", "argv": ["windows", "--image-name", "<imageName>", "--lang", "<lang>"] },
+    { "category": "dd", "distro": "dd", "version": "any", "argv": ["dd", "--img", "<img>"] }
+  ]
+}

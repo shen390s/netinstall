@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://netinstall.local/schemas/deployment-config.schema.json",
+  "title": "DeploymentConfig",
+  "description": "Cross-stage deployment configuration written by stage0 and consumed by stage1. Validated at every stage boundary.",
+  "type": "object",
+  "required": ["targetDisk", "os", "network"],
+  "additionalProperties": false,
+  "properties": {
+    "targetDisk": {
+      "type": "object",
+      "description": "The confirmed target disk, pinned by its /dev/disk/by-id path and identity.",
+      "required": ["id", "model", "serial", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "/dev/disk/by-id path, e.g. wwn-0x5000c500a1234567"
+        },
+        "model": { "type": "string" },
+        "serial": { "type": "string" },
+        "size": { "type": "string", "description": "Disk size in bytes" }
+      }
+    },
+    "os": {
+      "type": "object",
+      "description": "The selected operating system. category is a closed enum; extra is validated per category.",
+      "required": ["category", "distro", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["linux", "windows", "dd"]
+        },
+        "distro": { "type": "string" },
+        "version": { "type": "string" },
+        "extra": {
+          "type": "object",
+          "description": "Category-specific options (Windows imageName/lang, dd img URL)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "category": { "const": "windows" } }
+          },
+          "then": {
+            "properties": {
+              "extra": {
+                "type": "object",
+                "required": ["imageName", "lang"],
+                "additionalProperties": false,
+                "properties": {
+                  "imageName": { "type": "string" },
+                  "lang": { "type": "string" },
+                  "iso": { "type": "string" },
+                  "allowPing": { "type": "boolean" },
+                  "rdpPort": { "type": "integer" },
+                  "addDriver": { "type": "string" },
+                  "noAutoDrivers": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "category": { "const": "dd" } }
+          },
+          "then": {
+            "properties": {
+              "extra": {
+                "type": "object",
+                "required": ["img"],
+                "additionalProperties": false,
+                "properties": {
+                  "img": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "credentials": {
+      "type": "object",
+      "description": "Login credentials for the final OS. Optional.",
+      "additionalProperties": false,
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "sshKey": { "type": "string" },
+        "sshPort": { "type": "integer" }
+      }
+    },
+    "network": {
+      "type": "object",
+      "description": "Network configuration. mode is a closed enum; static fields apply only when mode is static.",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["dhcp", "static"]
+        },
+        "ipv4": { "type": "string" },
+        "gateway": { "type": "string" },
+        "dns": { "type": "string" }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "description": "Egress proxy configuration. Optional.",
+      "additionalProperties": false,
+      "properties": {
+        "http": { "type": "string" },
+        "https": { "type": "string" },
+        "all": { "type": "string" },
+        "noProxy": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Hosts that bypass the proxy."
+        },
+        "githubProxy": { "type": "string" }
+      }
+    },
+    "access": {
+      "type": "object",
+      "description": "Observability/rescue access. Optional.",
+      "additionalProperties": false,
+      "properties": {
+        "webPort": { "type": "integer" },
+        "frpcConfig": { "type": "string" }
+      }
+    }
+  }
+}
