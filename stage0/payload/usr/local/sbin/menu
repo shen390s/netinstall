@@ -1,0 +1,473 @@
+#!/bin/sh
+# menu — Configuration Menu (stage0-netboot-image, task 2.1)
+#
+# Two layers:
+#   1. A non-interactive, testable core: assembles a DeploymentConfig JSON
+#      object from collected answers, validates it against the critical
+#      invariants of config.schema.json, and gates all output behind an
+#      explicit full-wipe confirmation. The core never writes to a block device.
+#   2. A thin dialog(1) TUI that collects the answers and drives the core.
+#
+# All functions are POSIX sh (busybox ash compatible); no bashisms.
+
+# ---------------------------------------------------------------------------
+# Configuration paths (overridable as a test seam).
+# ---------------------------------------------------------------------------
+MENU_OS_CATALOG=${MENU_OS_CATALOG:-/etc/netinstall/os-catalog.json}
+MENU_CONFIG_SCHEMA=${MENU_CONFIG_SCHEMA:-/etc/netinstall/config.schema.json}
+
+# Global wipe guard, set by menu_config_emit: "confirmed" or "unconfirmed".
+MENU_WIPE_GUARD=
+
+# ---------------------------------------------------------------------------
+# Core: JSON building blocks
+# ---------------------------------------------------------------------------
+
+# menu_json_escape <string>
+# Emit the value as a JSON string body (no surrounding quotes): backslash and
+# double-quote are escaped, and control characters that cannot appear literally
+# in a JSON string (tab/newline/CR) are folded to spaces so they cannot break
+# the JSON structure.
+menu_json_escape() {
+    printf '%s' "${1:-}" | tr '\t\n\r' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+# menu_json_array <csv>
+# Emit a JSON array of strings from a comma-separated list, e.g. "a,b" -> ["a","b"].
+menu_json_array() {
+    _csv=${1:-}
+    _out='['
+    _sep=''
+    _old_ifs=$IFS
+    IFS=','
+    for _item in $_csv; do
+        _item=$(printf '%s' "$_item" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        [ -n "$_item" ] || continue
+        _out="$_out$_sep\"$(menu_json_escape "$_item")\""
+        _sep=','
+    done
+    IFS=$_old_ifs
+    _out="$_out]"
+    printf '%s' "$_out"
+}
+
+# menu_json_get_str <config> <key>
+# Print the first string value for <key> in a JSON object text, or nothing.
+menu_json_get_str() {
+    printf '%s\n' "$1" | sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" | head -n 1
+}
+
+# ---------------------------------------------------------------------------
+# Core: validation of individual answers
+# ---------------------------------------------------------------------------
+
+# menu_validate_disk <id> <model> <serial> <size>
+# Return 0 if the disk identity is complete and <id> is a stable by-id path.
+menu_validate_disk() {
+    _id=${1:-}; _model=${2:-}; _serial=${3:-}; _size=${4:-}
+    if [ -z "$_id" ] || [ -z "$_model" ] || [ -z "$_serial" ] || [ -z "$_size" ]; then
+        echo "menu: target disk identity incomplete (id/model/serial/size required)" >&2
+        return 1
+    fi
+    case "$_id" in
+        /dev/disk/by-id/*) return 0 ;;
+        *) echo "menu: target disk id must be a /dev/disk/by-id path: $_id" >&2; return 1 ;;
+    esac
+}
+
+# menu_os_supported <category> <distro> <version>
+# Return 0 if the triple is listed in the OS catalog, 1 otherwise.
+menu_os_supported() {
+    _cat=${1:-}; _distro=${2:-}; _ver=${3:-}
+    [ -n "$_cat" ] && [ -n "$_distro" ] && [ -n "$_ver" ] || return 1
+    [ -r "$MENU_OS_CATALOG" ] || return 1
+    _pat="\"category\": \"$_cat\", \"distro\": \"$_distro\", \"version\": \"$_ver\""
+    grep -qF "$_pat" "$MENU_OS_CATALOG"
+}
+
+# menu_catalog_list
+# Emit `category|distro|version` lines from the OS catalog (for the TUI menu).
+menu_catalog_list() {
+    sed -n 's/.*"category": "\([^"]*\)", "distro": "\([^"]*\)", "version": "\([^"]*\)".*/\1|\2|\3/p' \
+        "$MENU_OS_CATALOG"
+}
+
+# ---------------------------------------------------------------------------
+# Core: config assembly + gating
+# ---------------------------------------------------------------------------
+
+# menu_config_emit \
+#   <disk_id> <disk_model> <disk_serial> <disk_size> \
+#   <os_category> <os_distro> <os_version> <os_image_name> <os_lang> <os_img> \
+#   <username> <password> <ssh_key> <ssh_port> \
+#   <net_mode> <net_ipv4> <net_gateway> <net_dns> \
+#   <proxy_http> <proxy_https> <proxy_all> <proxy_no_proxy_csv> <proxy_github> \
+#   <wipe_confirmed>
+#
+# Emits a DeploymentConfig JSON object on stdout and returns 0 when the answers
+# are valid AND the operator confirmed the full wipe. Otherwise emits nothing on
+# stdout and returns non-zero:
+#   2 — wipe not confirmed (MENU_WIPE_GUARD=unconfirmed)
+#   1 — invalid answers (MENU_WIPE_GUARD=confirmed)
+# Never writes to any block device.
+menu_config_emit() {
+    [ "$#" -eq 24 ] || {
+        echo "menu: expected 24 answers, got $#" >&2
+        MENU_WIPE_GUARD=unconfirmed
+        return 1
+    }
+
+    _disk_id=$1; _disk_model=$2; _disk_serial=$3; _disk_size=$4
+    _os_cat=$5; _os_distro=$6; _os_ver=$7
+    _os_image_name=$8; _os_lang=$9; _os_img=${10}
+    _user=${11}; _pass=${12}; _ssh_key=${13}; _ssh_port=${14}
+    _net_mode=${15}; _net_ipv4=${16}; _net_gateway=${17}; _net_dns=${18}
+    _px_http=${19}; _px_https=${20}; _px_all=${21}; _px_no=${22}; _px_github=${23}
+    _wipe=${24}
+
+    # 1) Full-wipe confirmation gate — highest-priority safety check.
+    case "$_wipe" in
+        yes|YES|1|true|on)
+            MENU_WIPE_GUARD=confirmed
+            ;;
+        *)
+            MENU_WIPE_GUARD=unconfirmed
+            echo "menu: full-wipe confirmation required; no config emitted" >&2
+            return 2
+            ;;
+    esac
+
+    # 2) Disk identity.
+    menu_validate_disk "$_disk_id" "$_disk_model" "$_disk_serial" "$_disk_size" || return 1
+
+    # 3) OS selection: closed category enum + catalog membership + per-category extra.
+    case "$_os_cat" in
+        linux|windows|dd) ;;
+        *) echo "menu: unsupported os.category [$_os_cat]" >&2; return 1 ;;
+    esac
+    menu_os_supported "$_os_cat" "$_os_distro" "$_os_ver" || {
+        echo "menu: unsupported os [$_os_cat/$_os_distro/$_os_ver]" >&2
+        return 1
+    }
+    case "$_os_cat" in
+        windows)
+            [ -n "$_os_image_name" ] && [ -n "$_os_lang" ] || {
+                echo "menu: windows requires imageName and lang" >&2
+                return 1
+            }
+            ;;
+        dd)
+            [ -n "$_os_img" ] || {
+                echo "menu: dd requires img" >&2
+                return 1
+            }
+            ;;
+    esac
+
+    # 4) Network mode enum; sshPort must be an integer when provided.
+    case "$_net_mode" in
+        dhcp|static) ;;
+        *) echo "menu: unsupported network.mode [$_net_mode]" >&2; return 1 ;;
+    esac
+    case "$_ssh_port" in
+        '') : ;;
+        *[!0-9]*) echo "menu: sshPort must be an integer [$_ssh_port]" >&2; return 1 ;;
+    esac
+
+    # 5) Assemble the JSON object.
+    _td_json="\"targetDisk\":{\"id\":\"$(menu_json_escape "$_disk_id")\",\"model\":\"$(menu_json_escape "$_disk_model")\",\"serial\":\"$(menu_json_escape "$_disk_serial")\",\"size\":\"$(menu_json_escape "$_disk_size")\"}"
+
+    _os_json="\"os\":{\"category\":\"$_os_cat\",\"distro\":\"$(menu_json_escape "$_os_distro")\",\"version\":\"$(menu_json_escape "$_os_ver")\",\"extra\":"
+    case "$_os_cat" in
+        linux)   _os_json="$_os_json{}" ;;
+        windows) _os_json="$_os_json{\"imageName\":\"$(menu_json_escape "$_os_image_name")\",\"lang\":\"$(menu_json_escape "$_os_lang")\"}" ;;
+        dd)      _os_json="$_os_json{\"img\":\"$(menu_json_escape "$_os_img")\"}" ;;
+    esac
+    _os_json="$_os_json}"
+
+    _creds_json=''
+    if [ -n "$_user" ] || [ -n "$_pass" ] || [ -n "$_ssh_key" ] || [ -n "$_ssh_port" ]; then
+        _creds_json='"credentials":{'
+        _sep=''
+        if [ -n "$_user" ]; then
+            _creds_json="$_creds_json$_sep\"username\":\"$(menu_json_escape "$_user")\""
+            _sep=','
+        fi
+        if [ -n "$_pass" ]; then
+            _creds_json="$_creds_json$_sep\"password\":\"$(menu_json_escape "$_pass")\""
+            _sep=','
+        fi
+        if [ -n "$_ssh_key" ]; then
+            _creds_json="$_creds_json$_sep\"sshKey\":\"$(menu_json_escape "$_ssh_key")\""
+            _sep=','
+        fi
+        if [ -n "$_ssh_port" ]; then
+            _creds_json="$_creds_json$_sep\"sshPort\":$_ssh_port"
+            _sep=','
+        fi
+        _creds_json="$_creds_json}"
+    fi
+
+    _net_json="\"network\":{\"mode\":\"$_net_mode\""
+    [ -n "$_net_ipv4" ] && _net_json="$_net_json,\"ipv4\":\"$(menu_json_escape "$_net_ipv4")\""
+    [ -n "$_net_gateway" ] && _net_json="$_net_json,\"gateway\":\"$(menu_json_escape "$_net_gateway")\""
+    [ -n "$_net_dns" ] && _net_json="$_net_json,\"dns\":\"$(menu_json_escape "$_net_dns")\""
+    _net_json="$_net_json}"
+
+    _px_json=''
+    if [ -n "$_px_http" ] || [ -n "$_px_https" ] || [ -n "$_px_all" ] || [ -n "$_px_no" ] || [ -n "$_px_github" ]; then
+        _px_json='"proxy":{'
+        _sep=''
+        if [ -n "$_px_http" ]; then
+            _px_json="$_px_json$_sep\"http\":\"$(menu_json_escape "$_px_http")\""
+            _sep=','
+        fi
+        if [ -n "$_px_https" ]; then
+            _px_json="$_px_json$_sep\"https\":\"$(menu_json_escape "$_px_https")\""
+            _sep=','
+        fi
+        if [ -n "$_px_all" ]; then
+            _px_json="$_px_json$_sep\"all\":\"$(menu_json_escape "$_px_all")\""
+            _sep=','
+        fi
+        if [ -n "$_px_no" ]; then
+            _px_json="$_px_json$_sep\"noProxy\":$(menu_json_array "$_px_no")"
+            _sep=','
+        fi
+        if [ -n "$_px_github" ]; then
+            _px_json="$_px_json$_sep\"githubProxy\":\"$(menu_json_escape "$_px_github")\""
+            _sep=','
+        fi
+        _px_json="$_px_json}"
+    fi
+
+    _json="{$_td_json,$_os_json"
+    [ -n "$_creds_json" ] && _json="$_json,$_creds_json"
+    _json="$_json,$_net_json"
+    [ -n "$_px_json" ] && _json="$_json,$_px_json"
+    _json="$_json}"
+
+    printf '%s\n' "$_json"
+    return 0
+}
+
+# menu_config_validate <config>
+# Minimal structural validator for the critical config.schema.json invariants:
+# top-level object + required fields, os.category enum, per-category extra, and
+# network.mode enum. Full draft-07 validation is not required at runtime.
+menu_config_validate() {
+    _cfg=${1:-}
+    [ -n "$_cfg" ] || { echo "menu: empty config" >&2; return 1; }
+    case "$_cfg" in
+        '{'*) : ;;
+        *) echo "menu: config is not a JSON object" >&2; return 1 ;;
+    esac
+
+    # Structural sanity: braces and brackets must balance (catches malformed
+    # assembly such as an unclosed nested object).
+    [ "$(printf '%s\n' "$_cfg" | tr -cd '{' | wc -c)" -eq \
+      "$(printf '%s\n' "$_cfg" | tr -cd '}' | wc -c)" ] || {
+        echo "menu: unbalanced braces in config" >&2
+        return 1
+    }
+    [ "$(printf '%s\n' "$_cfg" | tr -cd '[' | wc -c)" -eq \
+      "$(printf '%s\n' "$_cfg" | tr -cd ']' | wc -c)" ] || {
+        echo "menu: unbalanced brackets in config" >&2
+        return 1
+    }
+
+    for _k in '"targetDisk"' '"os"' '"network"'; do
+        case "$_cfg" in
+            *"$_k":*) : ;;
+            *) echo "menu: missing required field $_k" >&2; return 1 ;;
+        esac
+    done
+
+    for _k in id model serial size category distro version mode; do
+        [ -n "$(menu_json_get_str "$_cfg" "$_k")" ] || {
+            echo "menu: missing/empty required field [$_k]" >&2
+            return 1
+        }
+    done
+
+    _cat=$(menu_json_get_str "$_cfg" category)
+    case "$_cat" in
+        linux|windows|dd) ;;
+        *) echo "menu: invalid os.category [$_cat]" >&2; return 1 ;;
+    esac
+    case "$_cat" in
+        windows)
+            [ -n "$(menu_json_get_str "$_cfg" imageName)" ] && [ -n "$(menu_json_get_str "$_cfg" lang)" ] || {
+                echo "menu: windows extra missing imageName/lang" >&2
+                return 1
+            }
+            ;;
+        dd)
+            [ -n "$(menu_json_get_str "$_cfg" img)" ] || {
+                echo "menu: dd extra missing img" >&2
+                return 1
+            }
+            ;;
+    esac
+
+    _mode=$(menu_json_get_str "$_cfg" mode)
+    case "$_mode" in
+        dhcp|static) ;;
+        *) echo "menu: invalid network.mode [$_mode]" >&2; return 1 ;;
+    esac
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Interactive dialog TUI (thin shell over the core)
+# ---------------------------------------------------------------------------
+
+# menu_dialog_input <title> <default> — prompt for a single line; echo the value.
+menu_dialog_input() {
+    _title=$1; _default=${2:-}
+    _f="$MENU_TMPDIR/input"
+    dialog --inputbox "$_title" 0 0 "$_default" 2>"$_f" || return 1
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$_f"
+}
+
+# menu_dialog_select <title> [tag item ...] — menu; echo the chosen tag.
+menu_dialog_select() {
+    _title=$1
+    shift
+    _f="$MENU_TMPDIR/select"
+    dialog --menu "$_title" 0 0 0 "$@" 2>"$_f" || return 1
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$_f"
+}
+
+# menu_main [out_path]
+# Interactive flow: select disk -> select OS -> credentials -> network -> proxy
+# -> confirm full wipe -> emit config via the core and write it to out_path.
+menu_main() {
+    _out_path=${1:-/etc/netinstall/config.json}
+
+    command -v dialog >/dev/null 2>&1 || {
+        echo "menu: dialog is required for the interactive TUI" >&2
+        return 1
+    }
+
+    # Load the disk helper lazily (the testable core does not depend on it).
+    _menu_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+    _disk_lib="${MENU_LIB_DISK:-$_menu_dir/lib/disk.sh}"
+    if [ -r "$_disk_lib" ]; then
+        . "$_disk_lib"
+    else
+        echo "menu: cannot load disk helper library ($_disk_lib)" >&2
+        return 1
+    fi
+
+    MENU_TMPDIR=$(mktemp -d) || return 1
+    trap 'rm -rf "$MENU_TMPDIR"' EXIT HUP INT TERM
+
+    # --- Target disk ---------------------------------------------------------
+    _disk_file="$MENU_TMPDIR/disks"
+    : > "$_disk_file"
+    set --
+    while IFS='|' read -r _name _model _serial _size; do
+        [ -n "$_name" ] || continue
+        _id=$(disk_resolve_by_id "$_name") || continue
+        printf '%s|%s|%s|%s\n' "$_id" "$_model" "$_serial" "$_size" >> "$_disk_file"
+        set -- "$@" "$_id" "$_model | $_serial | $_size"
+    done <<EOF
+$(disk_list)
+EOF
+    [ "$#" -gt 0 ] || { echo "menu: no disks found; aborting to rescue" >&2; return 1; }
+
+    _chosen=$(menu_dialog_select "Select target disk (model | serial | size)" "$@") || return 1
+    IFS='|' read -r _disk_id _disk_model _disk_serial _disk_size <<EOF
+$(grep -F "$_chosen|" "$_disk_file" | head -n 1)
+EOF
+    [ -n "$_disk_id" ] || { echo "menu: disk selection failed" >&2; return 1; }
+
+    # --- Operating system ----------------------------------------------------
+    set --
+    while IFS='|' read -r _cat _distro _ver; do
+        [ -n "$_cat" ] || continue
+        set -- "$@" "$_cat|$_distro|$_ver" "$_cat  $_distro  $_ver"
+    done <<EOF
+$(menu_catalog_list)
+EOF
+    [ "$#" -gt 0 ] || { echo "menu: OS catalog is empty" >&2; return 1; }
+
+    _os_choice=$(menu_dialog_select "Select operating system" "$@") || return 1
+    _os_cat=${_os_choice%%|*}
+    _os_rest=${_os_choice#*|}
+    _os_distro=${_os_rest%%|*}
+    _os_ver=${_os_rest#*|}
+
+    _os_image_name=''; _os_lang=''; _os_img=''
+    case "$_os_cat" in
+        windows)
+            _os_image_name=$(menu_dialog_input "Windows image name" "Windows 11 Pro") || return 1
+            _os_lang=$(menu_dialog_input "Windows language" "en-us") || return 1
+            ;;
+        dd)
+            _os_img=$(menu_dialog_input "Disk image URL" "https://") || return 1
+            ;;
+    esac
+
+    # --- Credentials ---------------------------------------------------------
+    _user=$(menu_dialog_input "Username (leave empty to skip)" "") || return 1
+    _pass=$(menu_dialog_input "Password (leave empty to skip)" "") || return 1
+    _ssh_key=$(menu_dialog_input "SSH public key (leave empty to skip)" "") || return 1
+    _ssh_port=$(menu_dialog_input "SSH port" "22") || return 1
+
+    # --- Network -------------------------------------------------------------
+    _net_mode=$(menu_dialog_select "Network mode" dhcp "DHCP" static "Static") || return 1
+    _net_ipv4=''; _net_gateway=''; _net_dns=''
+    if [ "$_net_mode" = "static" ]; then
+        _net_ipv4=$(menu_dialog_input "IPv4 address (CIDR)" "") || return 1
+        _net_gateway=$(menu_dialog_input "Gateway" "") || return 1
+        _net_dns=$(menu_dialog_input "DNS server (optional)" "") || return 1
+    fi
+
+    # --- Proxy ---------------------------------------------------------------
+    _px_http=$(menu_dialog_input "HTTP proxy (leave empty to skip)" "") || return 1
+    _px_https=$(menu_dialog_input "HTTPS proxy (leave empty to skip)" "") || return 1
+    _px_all=$(menu_dialog_input "All-protocol proxy (leave empty to skip)" "") || return 1
+    _px_no=$(menu_dialog_input "No-proxy hosts, comma-separated (leave empty to skip)" "") || return 1
+    _px_github=$(menu_dialog_input "GitHub proxy mirror (leave empty to skip)" "") || return 1
+
+    # --- Full-wipe confirmation ---------------------------------------------
+    if menu_yesno "Wipe ALL data on:\n\n  ID:     $_disk_id\n  Model:  $_disk_model\n  Serial: $_disk_serial\n  Size:   $_disk_size\n\nThis is irreversible. Continue?"; then
+        _wipe=yes
+    else
+        _wipe=no
+    fi
+
+    _config=$(menu_config_emit \
+        "$_disk_id" "$_disk_model" "$_disk_serial" "$_disk_size" \
+        "$_os_cat" "$_os_distro" "$_os_ver" "$_os_image_name" "$_os_lang" "$_os_img" \
+        "$_user" "$_pass" "$_ssh_key" "$_ssh_port" \
+        "$_net_mode" "$_net_ipv4" "$_net_gateway" "$_net_dns" \
+        "$_px_http" "$_px_https" "$_px_all" "$_px_no" "$_px_github" \
+        "$_wipe") || {
+        echo "menu: aborting — wipe not confirmed or config invalid" >&2
+        return 1
+    }
+
+    printf '%s\n' "$_config" > "$_out_path"
+    echo "menu: wrote config to $_out_path"
+    return 0
+}
+
+# menu_yesno <question> — dialog yes/no; return 0 on yes, 1 on no/cancel.
+menu_yesno() {
+    dialog --yesno "$1" 0 0
+}
+
+# ---------------------------------------------------------------------------
+# Entry: run the TUI only when executed as `menu` (not sourced, not test mode).
+# ---------------------------------------------------------------------------
+case "${MENU_TEST_MODE:-0}" in
+    1) return 0 2>/dev/null || exit 0 ;;
+esac
+
+case "${0##*/}" in
+    menu) menu_main "$@" ;;
+esac

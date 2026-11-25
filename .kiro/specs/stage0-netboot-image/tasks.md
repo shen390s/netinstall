@@ -23,7 +23,7 @@
 ## 2. Core components
 
 - [ ] 2. Core stage0 and stage1 components
-- [ ] 2.1 (P) Configuration menu
+- [x] 2.1 (P) Configuration menu
   - Present a text menu that collects the target disk, OS/version, credentials, and network/proxy settings
   - Display disk identity (model, serial, size) and require an explicit full-wipe confirmation before anything is written
   - Validate the collected choices against the schema and reject unsupported OS selections without writing
