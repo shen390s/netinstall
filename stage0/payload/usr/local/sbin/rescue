@@ -1,0 +1,173 @@
+#!/bin/sh
+# rescue — Rescue & Observability (stage0-netboot-image, task 2.5)
+#
+# Cross-cutting recovery + progress component. Two layers:
+#
+#   1. A non-interactive, testable core that GENERATES the commands for the
+#      HTTP progress log and the key-based dropbear rescue SSH server, and
+#      writes serial progress lines + the authorized_keys file. It never
+#      executes dropbear/httpd, never touches a block device, and never
+#      reboots or powers off.
+#   2. Thin execution wrappers that run those commands, unless DRY_RUN=1 (in
+#      which case they only print the generated command).
+#
+# Requirement coverage (10.1, 10.2, 10.3):
+#   - 10.1  serial progress via rescue_log; HTTP progress log via httpd serving
+#           RESCUE_LOG_DIR on RESCUE_HTTP_PORT.
+#   - 10.2  key-based (NO password) dropbear SSH rescue shell via
+#           rescue_dropbear_command + rescue_setup_ssh.
+#   - 10.3  rescue_enter drops to an interactive shell (exec) as the last-resort
+#           recovery path; nothing here modifies disks or reboots, so the
+#           machine stays bootable/reachable.
+#
+# dropbear flags (verified against upstream src/svr-runopts.c):
+#   -p PORT     listen port
+#   -s          disable password logins (NO password auth)
+#   -D DIR      directory containing the `authorized_keys` file
+#   -r KEYFILE  host key (repeatable)
+#   -R          create host keys as required
+#   -F          don't fork into background
+#   -E          log to stderr
+#
+# All functions are POSIX sh (busybox ash compatible); no bashisms. The script
+# is self-contained: it sources nothing and calls neither the menu nor the
+# orchestrator.
+
+# ---------------------------------------------------------------------------
+# Configuration (overridable as a test seam).
+# ---------------------------------------------------------------------------
+RESCUE_SERIAL_DEV=${RESCUE_SERIAL_DEV:-/dev/console}   # or /dev/ttyS0
+RESCUE_LOG_DIR=${RESCUE_LOG_DIR:-/var/log/netinstall}
+RESCUE_HTTP_PORT=${RESCUE_HTTP_PORT:-8080}
+RESCUE_SSH_PORT=${RESCUE_SSH_PORT:-22}
+RESCUE_SSH_DIR=${RESCUE_SSH_DIR:-/etc/dropbear}
+RESCUE_AUTHKEYS_DIR=${RESCUE_AUTHKEYS_DIR:-/root/.ssh}
+RESCUE_HTTPD=${RESCUE_HTTPD:-httpd}
+RESCUE_DROPBEAR=${RESCUE_DROPBEAR:-dropbear}
+RESCUE_DROPBEARKEY=${RESCUE_DROPBEARKEY:-dropbearkey}
+RESCUE_SHELL=${RESCUE_SHELL:-sh}
+
+# ---------------------------------------------------------------------------
+# Serial progress log (10.1)
+# ---------------------------------------------------------------------------
+
+# rescue_log <message>
+# Write a single progress/error line to the serial console. Returns 0 even if
+# the console is unavailable (falls back to stderr) so that observability never
+# aborts the deployment. An empty message is rejected.
+rescue_log() {
+    _msg=${1:-}
+    [ -n "$_msg" ] || {
+        printf 'rescue: empty log message\n' >&2
+        return 1
+    }
+    if printf '[rescue] %s\n' "$_msg" >> "$RESCUE_SERIAL_DEV" 2>/dev/null; then
+        return 0
+    fi
+    printf '[rescue] %s\n' "$_msg" >&2
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# HTTP progress log (10.1)
+# ---------------------------------------------------------------------------
+
+# rescue_http_command [port] [log_dir]
+# Emit the busybox httpd invocation that serves the log directory as the HTTP
+# progress log, in the foreground, on <port>. Pure command generator.
+rescue_http_command() {
+    _port=${1:-${RESCUE_HTTP_PORT}}
+    _dir=${2:-${RESCUE_LOG_DIR}}
+    printf '%s -f -h %s -p %s\n' "$RESCUE_HTTPD" "$_dir" "$_port"
+}
+
+# rescue_start_http [port] [log_dir]
+# Generate, print, then execute the HTTP log command — unless DRY_RUN=1.
+rescue_start_http() {
+    _cmd=$(rescue_http_command "$@") || return $?
+    printf '%s\n' "$_cmd"
+    [ "${DRY_RUN:-0}" = 1 ] && return 0
+    eval "$_cmd"
+}
+
+# ---------------------------------------------------------------------------
+# Key-based dropbear SSH rescue shell (10.2)
+# ---------------------------------------------------------------------------
+
+# rescue_hostkey_commands [ssh_dir]
+# Emit the commands that create the dropbear host keys in <ssh_dir>. Pure
+# command generator; the keys are materialized by rescue_setup_ssh.
+rescue_hostkey_commands() {
+    _dir=${1:-${RESCUE_SSH_DIR}}
+    printf 'mkdir -p %s\n' "$_dir"
+    printf '%s -t ed25519 -f %s/dropbear_ed25519_host_key\n' "$RESCUE_DROPBEARKEY" "$_dir"
+    printf '%s -t rsa -f %s/dropbear_rsa_host_key\n' "$RESCUE_DROPBEARKEY" "$_dir"
+}
+
+# rescue_write_authorized_keys <ssh_pubkey> [authkeys_dir]
+# Write the provided SSH public key into <authkeys_dir>/authorized_keys with
+# dropbear-required permissions (0700 dir, 0600 file). Returns 1 on an empty key.
+rescue_write_authorized_keys() {
+    _key=${1:-}
+    _dir=${2:-${RESCUE_AUTHKEYS_DIR}}
+    [ -n "$_key" ] || {
+        printf 'rescue: SSH public key is required\n' >&2
+        return 1
+    }
+    mkdir -p "$_dir" || return 1
+    chmod 700 "$_dir" 2>/dev/null || return 1
+    printf '%s\n' "$_key" > "$_dir/authorized_keys" || return 1
+    chmod 600 "$_dir/authorized_keys" 2>/dev/null || return 1
+}
+
+# rescue_dropbear_command [port] [ssh_dir] [authkeys_dir]
+# Emit the dropbear invocation for a key-based rescue shell: password auth is
+# disabled (-s), the authorized key comes from the authorized_keys directory
+# (-D), and host keys are referenced (-r) and created as required (-R). Pure
+# command generator.
+rescue_dropbear_command() {
+    _port=${1:-${RESCUE_SSH_PORT}}
+    _ssh_dir=${2:-${RESCUE_SSH_DIR}}
+    _authkeys_dir=${3:-${RESCUE_AUTHKEYS_DIR}}
+    printf '%s -F -E -R -s -p %s -r %s/dropbear_ed25519_host_key -r %s/dropbear_rsa_host_key -D %s\n' \
+        "$RESCUE_DROPBEAR" "$_port" "$_ssh_dir" "$_ssh_dir" "$_authkeys_dir"
+}
+
+# rescue_setup_ssh <ssh_pubkey> [ssh_dir] [authkeys_dir]
+# Materialize the rescue SSH state: write authorized_keys and generate the
+# host keys. Prints the host-key commands; executes them unless DRY_RUN=1.
+rescue_setup_ssh() {
+    _key=${1:-}
+    _ssh_dir=${2:-${RESCUE_SSH_DIR}}
+    _authkeys_dir=${3:-${RESCUE_AUTHKEYS_DIR}}
+    rescue_write_authorized_keys "$_key" "$_authkeys_dir" || return $?
+    _cmds=$(rescue_hostkey_commands "$_ssh_dir") || return $?
+    printf '%s\n' "$_cmds"
+    [ "${DRY_RUN:-0}" = 1 ] && return 0
+    printf '%s\n' "$_cmds" | sh -e
+}
+
+# rescue_start_ssh [port] [ssh_dir] [authkeys_dir]
+# Generate, print, then execute the dropbear rescue command — unless DRY_RUN=1.
+rescue_start_ssh() {
+    _cmd=$(rescue_dropbear_command "$@") || return $?
+    printf '%s\n' "$_cmd"
+    [ "${DRY_RUN:-0}" = 1 ] && return 0
+    eval "$_cmd"
+}
+
+# ---------------------------------------------------------------------------
+# Last-resort recovery shell (10.3)
+# ---------------------------------------------------------------------------
+
+# rescue_enter
+# Drop to an interactive shell via exec (the process image is replaced). This
+# is the recovery path on failure; it never touches disks or reboots.
+rescue_enter() {
+    exec "${RESCUE_SHELL:-sh}"
+}
+
+# Run as a command only when invoked as `rescue` (not when sourced by a test).
+case "${0##*/}" in
+    rescue) rescue_enter "$@" ;;
+esac

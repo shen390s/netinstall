@@ -51,7 +51,7 @@
   - _Boundary: Proxy Network Propagator_
   - _Depends: 1.4_
   - _Requirements: 8.2, 8.3_
-- [ ] 2.5 (P) Rescue and observability
+- [x] 2.5 (P) Rescue and observability
   - Provide serial-console progress, an HTTP progress log, and a key-based SSH rescue shell
   - Done when progress is visible on serial/HTTP and a failed boot or install drops to a reachable rescue shell
   - _Boundary: Rescue & Observability_
