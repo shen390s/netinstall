@@ -38,7 +38,7 @@
   - _Boundary: Reinstall Adapter_
   - _Depends: 1.2, 1.3_
   - _Requirements: 4.2, 4.3, 5.2, 8.2, 9.1_
-- [ ] 2.3 (P) Disk provisioner
+- [x] 2.3 (P) Disk provisioner
   - Run the standard disk install to partition the confirmed disk, install a bootloader for both BIOS and UEFI firmware, and install the minimal base OS
   - Operate only on the disk pinned by its stable identifier
   - Done when a loop-device disk is partitioned, made bootable in both firmware modes, and carries the minimal base OS

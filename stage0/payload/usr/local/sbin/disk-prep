@@ -1,0 +1,120 @@
+#!/bin/sh
+# disk-prep — Disk Provisioner (stage0-netboot-image, task 2.3)
+#
+# Makes the operator-confirmed target disk bootable: partitions it, installs a
+# grub bootloader for the detected firmware mode, and installs the minimal base
+# OS — all via the standard Alpine disk install (`setup-disk -m sys`).
+#
+# The destructive work is gated behind two layers:
+#   1. A pure, testable core (`disk_prep_plan`) that resolves the by-id path to
+#      a real device, guards against wrong-disk writes (requirement 6.3), and
+#      emits the shell commands — it never executes anything.
+#   2. A thin wrapper (`disk_prep_run`) that executes those commands, or prints
+#      them only when DRY_RUN=1.
+#
+# Contract:
+#
+#     disk_prep_plan <disk_id> <firmware> [by_id_dir]
+#
+#   <disk_id>    the confirmed targetDisk.id — a /dev/disk/by-id/... path (or,
+#                under test, a symlink inside the supplied by_id_dir).
+#   <firmware>   "bios" or "uefi".
+#   <by_id_dir>  optional; defaults to /dev/disk/by-id (test seam).
+#
+# On success it emits on stdout the commands to run, one per line:
+#
+#   bios:  setup-disk -m sys -B grub /dev/<dev>
+#          grub-install --target=i386-pc /dev/<dev>
+#   uefi:  USE_EFI=1 setup-disk -m sys -B grub /dev/<dev>
+#          grub-install --target=x86_64-efi /dev/<dev>
+#
+# `-B grub` selects grub as the bootloader (requirement 6.2); the explicit
+# `grub-install --target=<i386-pc|x86_64-efi>` pins the firmware-correct grub
+# target. On any guard failure it emits nothing on stdout and returns non-zero.
+#
+# All functions are POSIX sh (busybox ash compatible); no bashisms.
+
+DISK_PREP_DISK_LIB=${DISK_PREP_DISK_LIB:-/usr/local/sbin/lib/disk.sh}
+
+# Reuse the stable-id resolution helper (disk.sh -> disk_resolve_by_id).
+. "$DISK_PREP_DISK_LIB"
+
+# ---------------------------------------------------------------------------
+# Core: command generation + wrong-disk guard (pure; never executes)
+# ---------------------------------------------------------------------------
+
+# disk_prep_plan <disk_id> <firmware> [by_id_dir]
+# Emit the `setup-disk -m sys` + grub-install commands for the pinned disk, or
+# nothing + non-zero when the disk cannot be pinned to its by-id target.
+disk_prep_plan() {
+    _disk_id=${1:-}
+    _firmware=${2:-}
+    _by_id_dir=${3:-/dev/disk/by-id}
+
+    # (1) A target disk id is mandatory (requirement 6.3 — never guess a disk).
+    [ -n "$_disk_id" ] || {
+        echo "disk-prep: target disk id is required" >&2
+        return 1
+    }
+
+    # (2) Resolve the by-id symlink to the real device name it points at.
+    _link_target=$(readlink "$_disk_id" 2>/dev/null) || {
+        echo "disk-prep: cannot resolve by-id target: $_disk_id" >&2
+        return 1
+    }
+    _dev=${_link_target##*/}
+    [ -n "$_dev" ] || {
+        echo "disk-prep: by-id target resolves to no device: $_disk_id" >&2
+        return 1
+    }
+
+    # (3) Wrong-disk guard (requirement 6.3): the resolved device must round-trip
+    #     to exactly this by-id path. A device with no by-id entry, or one whose
+    #     stable id differs from the confirmed target, is refused.
+    _resolved=$(disk_resolve_by_id "$_dev" "$_by_id_dir" 2>/dev/null) || {
+        echo "disk-prep: device $_dev has no stable by-id entry; refusing" >&2
+        return 1
+    }
+    [ "$_resolved" = "$_disk_id" ] || {
+        echo "disk-prep: resolved device [$_resolved] is not the expected by-id target [$_disk_id]; refusing" >&2
+        return 1
+    }
+
+    # (4) Firmware mode -> grub target (requirement 6.2).
+    _real_dev="/dev/$_dev"
+    case "$_firmware" in
+        bios)
+            printf 'setup-disk -m sys -B grub %s\n' "$_real_dev"
+            printf 'grub-install --target=i386-pc %s\n' "$_real_dev"
+            ;;
+        uefi)
+            printf 'USE_EFI=1 setup-disk -m sys -B grub %s\n' "$_real_dev"
+            printf 'grub-install --target=x86_64-efi %s\n' "$_real_dev"
+            ;;
+        *)
+            echo "disk-prep: unsupported firmware mode [$_firmware] (expected bios|uefi)" >&2
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Thin wrapper: execute (or, with DRY_RUN=1, only print) the generated plan
+# ---------------------------------------------------------------------------
+
+# disk_prep_run <disk_id> <firmware> [by_id_dir]
+# Plan, print, then execute — unless DRY_RUN=1, which prints only.
+disk_prep_run() {
+    _plan=$(disk_prep_plan "$@") || return $?
+    printf '%s\n' "$_plan"
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+        return 0
+    fi
+    printf '%s\n' "$_plan" | sh -e
+}
+
+# Run as a command only when invoked as `disk-prep` (not when sourced by a test).
+case "${0##*/}" in
+    disk-prep) disk_prep_run "$@" ;;
+esac
