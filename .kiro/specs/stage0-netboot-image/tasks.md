@@ -7,7 +7,7 @@
   - Install and pin the initramfs builder, bootloader, ISO tooling, partition utilities, TUI toolkit, SSH server, and a virtual-machine runner for end-to-end tests
   - Done when the container builds successfully and each tool runs with its expected version; the VM runner can boot a test image
   - _Prerequisite for: 3.5 (build), 4.3 (end-to-end tests)_
-- [ ] 1.2 Vendor the pinned reinstall bundle
+- [x] 1.2 Vendor the pinned reinstall bundle
   - Download a specific release of the OS-install tool and its two support scripts, and record the pinned version and checksums
   - Done when the bundle is present with a recorded version and checksums that match the pinned release
   - _Consumed by: 2.2 (adapter), 3.1 (stage1 installer)_
