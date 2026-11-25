@@ -105,7 +105,7 @@
   - Cover disk installation on a loop device, stage1 artifact injection, and the proxy patch application
   - Done when the integration suite passes in the build container
   - _Requirements: 6.1, 7.1, 8.2_
-- [ ] 4.3 End-to-end tests
+- [x] 4.3 End-to-end tests
   - Boot stage0 via network and ISO in a virtual machine, script the menu, and verify the final OS boots; verify unsupported-OS rejection and proxy traversal
   - Done when end-to-end tests pass for both boot paths and the negative cases
   - _Depends: 3.5_
