@@ -79,13 +79,13 @@ WRONG_ID="$tmpdir/zzz-Wrong_SSD"
 MISSING_ID="$tmpdir/ata-No_Such_Disk"
 
 bios_expected=$(cat <<'EOF'
-setup-disk -m sys -B grub /dev/sda
+BOOTLOADER=grub setup-disk -m sys /dev/sda
 grub-install --target=i386-pc /dev/sda
 EOF
 )
 
 uefi_expected=$(cat <<'EOF'
-USE_EFI=1 setup-disk -m sys -B grub /dev/sda
+USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/sda
 grub-install --target=x86_64-efi /dev/sda
 EOF
 )
@@ -97,7 +97,7 @@ plan=$(disk_prep_plan "$GOOD_ID" bios "$tmpdir" 2>"$tmpdir/err"); st=$?
 assert_return_ok "bios plan returns 0" "$st"
 assert_eq "bios plan emits setup-disk -m sys + i386-pc grub" "$bios_expected" "$plan"
 assert_contains "bios plan runs the standard disk install" "setup-disk -m sys" "$plan"
-assert_contains "bios plan selects grub bootloader" "-B grub" "$plan"
+assert_contains "bios plan selects grub bootloader" "BOOTLOADER=grub" "$plan"
 assert_contains "bios plan selects i386-pc target" "i386-pc" "$plan"
 assert_contains "bios plan operates on the resolved device" "/dev/sda" "$plan"
 assert_not_contains "bios plan has no UEFI target" "x86_64-efi" "$plan"
@@ -109,7 +109,7 @@ plan=$(disk_prep_plan "$GOOD_ID" uefi "$tmpdir" 2>"$tmpdir/err"); st=$?
 assert_return_ok "uefi plan returns 0" "$st"
 assert_eq "uefi plan emits setup-disk -m sys + x86_64-efi grub" "$uefi_expected" "$plan"
 assert_contains "uefi plan runs the standard disk install" "setup-disk -m sys" "$plan"
-assert_contains "uefi plan selects grub bootloader" "-B grub" "$plan"
+assert_contains "uefi plan selects grub bootloader" "BOOTLOADER=grub" "$plan"
 assert_contains "uefi plan selects x86_64-efi target" "x86_64-efi" "$plan"
 assert_contains "uefi plan operates on the resolved device" "/dev/sda" "$plan"
 assert_not_contains "uefi plan has no BIOS target" "i386-pc" "$plan"
@@ -169,7 +169,7 @@ unset DRY_RUN
 disk_prep_run "$GOOD_ID" bios "$tmpdir" > "$tmpdir/exec.out" 2>"$tmpdir/exec.err"; st=$?
 assert_return_ok "non-dry-run wrapper returns 0" "$st"
 assert_contains "non-dry-run executes setup-disk" \
-    "setup-disk -m sys -B grub /dev/sda" "$(cat "$fakelog")"
+    "setup-disk -m sys /dev/sda" "$(cat "$fakelog")"
 assert_contains "non-dry-run executes grub-install" \
     "grub-install --target=i386-pc /dev/sda" "$(cat "$fakelog")"
 

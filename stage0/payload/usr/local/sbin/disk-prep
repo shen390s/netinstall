@@ -23,12 +23,13 @@
 #
 # On success it emits on stdout the commands to run, one per line:
 #
-#   bios:  setup-disk -m sys -B grub /dev/<dev>
+#   bios:  BOOTLOADER=grub setup-disk -m sys /dev/<dev>
 #          grub-install --target=i386-pc /dev/<dev>
-#   uefi:  USE_EFI=1 setup-disk -m sys -B grub /dev/<dev>
+#   uefi:  USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/<dev>
 #          grub-install --target=x86_64-efi /dev/<dev>
 #
-# `-B grub` selects grub as the bootloader (requirement 6.2); the explicit
+# `BOOTLOADER=grub` selects grub as the bootloader (requirement 6.2); the
+# explicit
 # `grub-install --target=<i386-pc|x86_64-efi>` pins the firmware-correct grub
 # target. On any guard failure it emits nothing on stdout and returns non-zero.
 #
@@ -84,11 +85,11 @@ disk_prep_plan() {
     _real_dev="/dev/$_dev"
     case "$_firmware" in
         bios)
-            printf 'setup-disk -m sys -B grub %s\n' "$_real_dev"
+            printf 'BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
             printf 'grub-install --target=i386-pc %s\n' "$_real_dev"
             ;;
         uefi)
-            printf 'USE_EFI=1 setup-disk -m sys -B grub %s\n' "$_real_dev"
+            printf 'USE_EFI=1 BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
             printf 'grub-install --target=x86_64-efi %s\n' "$_real_dev"
             ;;
         *)
