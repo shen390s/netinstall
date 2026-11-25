@@ -124,8 +124,8 @@ netinstall/
 │   │   └── usr/local/sbin/
 │   │       ├── stage0-main       # Orchestrator: firmware/network detect, drive the flow
 │   │       ├── menu              # dialog TUI: disk, OS, credentials, proxy
-│   │       ├── disk-prep         # partition + grub install (BIOS/UEFI)
-│   │       ├── stage1-install    # setup-disk + chroot injection of bundle/config/firstboot
+│   │       ├── disk-prep         # setup-disk: partition + grub + minimal base OS
+│   │       ├── stage1-install    # chroot injection of bundle/config/firstboot
 │   │       ├── reinstall-adapter # config → reinstall argv/env; owns pinned bundle + patch
 │   │       ├── rescue            # Rescue & Observability: dropbear SSH + serial + HTTP log
 │   │       └── lib/              # net.sh, disk.sh, proxy.sh (helpers)
@@ -215,8 +215,8 @@ Key decisions beyond the diagram:
 |-----------|-------|--------|--------------|--------------------------|-----------|
 | Stage0 Orchestrator | Orchestrator | Early boot, firmware/network detect, drive flow | 1.4, 7.3 | Menu, DiskProv, Stage1Inst, ProxyLib (P0) | State |
 | Configuration Menu | UI | Collect and validate DeploymentConfig via dialog | 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 4.1, 5.1, 8.1 | os-catalog, config.schema (P0) | State |
-| Disk Provisioner | Provider | Partition + install grub on selected disk | 6.1, 6.2, 6.3 | disk lib, setup-disk/grub (P0) | State |
-| Stage1 Installer | Provider | setup-disk + chroot-inject bundle/config/firstboot | 7.1 | ReinstallAdapter, setup-disk (P0) | State |
+| Disk Provisioner | Provider | Partition, install grub, and install minimal base OS on selected disk | 6.1, 6.2, 6.3 | disk lib, setup-disk/grub (P0) | State |
+| Stage1 Installer | Provider | chroot-inject bundle/config/firstboot into installed system | 7.1 | ReinstallAdapter, DiskProv (P0) | State |
 | Stage1 Firstboot | Stage1 runtime | Auto-run reinstall from config on next boot | 7.2, 9.2 | config.json, ReinstallAdapter (P0) | State |
 | Reinstall Adapter | Provider | Config → reinstall argv/env; owns pinned bundle + patch | 4.2, 4.3, 5.2, 9.1 | os-catalog, reinstall bundle (P0) | Service |
 | Proxy Network Propagator | Helper | Export + forward proxy env across stages | 8.2, 8.3 | proxy lib, reinstall patch (P0) | State |
@@ -304,17 +304,17 @@ map_config_to_reinstall "/etc/netinstall/config.json"
 
 | Field | Detail |
 |-------|--------|
-| Intent | Partition the confirmed disk and install grub (BIOS/UEFI) |
+| Intent | Make the selected disk bootable: partition, install grub, and install the minimal base OS |
 | Requirements | 6.1, 6.2, 6.3 |
 
 **Responsibilities & Constraints**
 - Operate only on the disk pinned by `/dev/disk/by-id` (from `config.targetDisk`).
-- Install grub for the detected firmware (`i386-pc` for BIOS, `x86_64-efi` for UEFI).
+- Run the standard disk install to partition the disk, install grub for the detected firmware (`i386-pc` for BIOS, `x86_64-efi` for UEFI), and install the minimal base OS.
 - Fail fast and leave the machine recoverable if no suitable disk exists.
 
 **Dependencies**
 - Inbound: Menu — target disk + confirmation (P0)
-- Outbound: disk lib, `setup-disk`/`grub` — partition + bootloader (P0)
+- Outbound: disk lib, `setup-disk`/`grub` — partition + bootloader + base OS (P0)
 
 **Contracts**: State [x]
 
@@ -322,17 +322,16 @@ map_config_to_reinstall "/etc/netinstall/config.json"
 
 | Field | Detail |
 |-------|--------|
-| Intent | Install minimal Alpine to disk and inject reinstall bundle + config + firstboot |
+| Intent | Inject the deployment payload into the disk-installed minimal system |
 | Requirements | 7.1 |
 
 **Responsibilities & Constraints**
-- Run `setup-disk -m sys` (with grub for both BIOS and UEFI) against the prepared disk.
-- Chroot into the installed system and place: the reinstall bundle, `config.json`, `profile.d/99-proxy.sh`, and `local.d/stage1.start`.
+- Chroot into the disk-installed system produced by the Disk Provisioner and place: the reinstall bundle, `config.json`, `profile.d/99-proxy.sh`, and `local.d/stage1.start`.
 - Ensure `local.d` is enabled so stage1 firstboot runs on the next boot.
 
 **Dependencies**
 - Inbound: Orchestrator — after Disk Provisioner (P0)
-- Outbound: Reinstall Adapter — bundle + argv (P0); `setup-disk` — install (P0)
+- Outbound: Reinstall Adapter — bundle + argv (P0); Disk Provisioner — installed disk (P0)
 
 **Contracts**: State [x]
 
