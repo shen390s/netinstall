@@ -62,3 +62,35 @@ proxy_github_rewrite() {
             ;;
     esac
 }
+
+# proxy_check_reachable <proxy_url>
+# Verify that <proxy_url> accepts connections by issuing a probe request through
+# it. Returns 0 if the proxy is reachable; non-zero with a clear message on
+# stderr otherwise (requirement 8.3). An empty proxy URL fails fast.
+#
+# The probe is unit-testable without a real network via two overridable seams:
+#   PROXY_CHECK_URL     — URL fetched through the proxy (default http://example.com).
+#   PROXY_CHECK_CMD     — when set, invoked as `$PROXY_CHECK_CMD <proxy_url> <probe_url>`
+#                         and its exit status decides reachability (test seam).
+#                         Otherwise a `wget -q -O /dev/null -T <timeout>` probe is used,
+#                         with PROXY_CHECK_TIMEOUT seconds (default 5).
+proxy_check_reachable() {
+    _proxy_url=${1:-}
+    if [ -z "$_proxy_url" ]; then
+        printf 'proxy_check_reachable: empty proxy URL\n' >&2
+        return 1
+    fi
+    _probe_url=${PROXY_CHECK_URL:-http://example.com}
+    if [ -n "${PROXY_CHECK_CMD:-}" ]; then
+        # shellcheck disable=SC2086
+        $PROXY_CHECK_CMD "$_proxy_url" "$_probe_url" 2>/dev/null
+    else
+        http_proxy="$_proxy_url" https_proxy="$_proxy_url" no_proxy='' \
+            wget -q -O /dev/null -T "${PROXY_CHECK_TIMEOUT:-5}" "$_probe_url" 2>/dev/null
+    fi
+    _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+        printf 'proxy_check_reachable: proxy %s unreachable\n' "$_proxy_url" >&2
+    fi
+    return "$_rc"
+}

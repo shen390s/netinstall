@@ -45,7 +45,7 @@
   - _Boundary: Disk Provisioner_
   - _Depends: 1.4_
   - _Requirements: 6.1, 6.2, 6.3_
-- [ ] 2.4 (P) Proxy and network propagator
+- [x] 2.4 (P) Proxy and network propagator
   - Export proxy environment (including the bypass list and GitHub proxy), detect an unreachable proxy, and author the stage1 proxy profile content
   - Done when a configured proxy is exported correctly, an unreachable proxy produces a reported error without proceeding, and the stage1 profile content is produced
   - _Boundary: Proxy Network Propagator_
