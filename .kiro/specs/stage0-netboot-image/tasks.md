@@ -79,7 +79,7 @@
   - Done when the full stage0 flow runs in order and never writes before confirmation
   - _Depends: 2.1, 2.3, 2.4, 3.1_
   - _Requirements: 1.4, 7.3_
-- [ ] 3.3 Stage0 initramfs feature
+- [x] 3.3 Stage0 initramfs feature
   - Define the initramfs feature that bakes the complete stage0 payload (scripts, config, bundle, and tool binaries) into a bootable initramfs
   - Done when a built initramfs contains every payload script and tool and boots into the stage0 menu
   - _Depends: 3.2_
