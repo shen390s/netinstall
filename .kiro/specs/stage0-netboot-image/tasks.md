@@ -68,7 +68,7 @@
 ## 3. Integration
 
 - [ ] 3. Integration and wiring
-- [ ] 3.1 Stage1 installer
+- [x] 3.1 Stage1 installer
   - Inject the deployment payload — the reinstall bundle, the config, the firstboot hook, and the proxy profile — into the disk-installed system via chroot, without re-partitioning
   - Done when the disk-installed system contains all injected artifacts and boots to a ready firstboot
   - _Depends: 2.2, 2.3, 2.4, 2.6_

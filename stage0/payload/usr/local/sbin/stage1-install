@@ -1,0 +1,92 @@
+#!/bin/sh
+# stage1-install — Stage1 Installer (stage0-netboot-image, task 3.1)
+#
+# Chroot-inject the deployment payload into the Disk Provisioner's installed
+# minimal system (the <sysroot>, e.g. /mnt) without re-partitioning and without
+# ever writing to a block device:
+#
+#   reinstall bundle        -> <sysroot>/usr/local/sbin/{reinstall.sh,trans.sh,initrd-network.sh}
+#     (reinstall.sh gets reinstall/patches/proxy-env.patch applied with -p2)
+#   reinstall-adapter       -> <sysroot>/usr/local/sbin/reinstall-adapter
+#   DeploymentConfig        -> <sysroot>/etc/netinstall/config.json
+#   proxy profile           -> <sysroot>/etc/profile.d/99-proxy.sh
+#   firstboot hook          -> <sysroot>/etc/local.d/stage1.start (made executable)
+#   OpenRC `local` service  -> enabled via chroot `rc-update add local default`
+#
+# Pure testable core: stage1_install_plan <sysroot> [config] emits the exact
+# source->destination + patch + enable command map on stdout. The thin wrapper
+# stage1_install_run validates + builds the plan, then either emits it
+# (DRY_RUN=1, nothing executed) or runs each line under `sh -e`.
+#
+# Fail-closed: a missing/empty <sysroot> or any missing source file returns
+# non-zero and emits no plan (so nothing is copied).
+#
+# Overridable seams (env):
+#   STAGE1_INSTALL_ROOT     payload root       (default /)
+#   STAGE1_INSTALL_ADAPTER  adapter path       (default /usr/local/sbin/reinstall-adapter)
+#   NETINSTALL_CONFIG       config source path (default /etc/netinstall/config.json)
+#   DRY_RUN=1               emit the plan, do not execute
+#
+# Requirement coverage: 7.1 (install minimal OS + reinstall + config via chroot
+# injection). All POSIX sh (busybox ash compatible); no bashisms.
+
+STAGE1_INSTALL_ROOT=${STAGE1_INSTALL_ROOT:-/}
+STAGE1_INSTALL_ADAPTER=${STAGE1_INSTALL_ADAPTER:-/usr/local/sbin/reinstall-adapter}
+NETINSTALL_CONFIG=${NETINSTALL_CONFIG:-/etc/netinstall/config.json}
+
+# stage1_install_plan <sysroot> [config]
+# Emit the injection command map. Fail-closed (non-zero, empty stdout) when
+# <sysroot> is missing/empty or any source file is missing.
+stage1_install_plan() {
+    _sysroot=${1:-}
+    _config=${2:-${NETINSTALL_CONFIG:-/etc/netinstall/config.json}}
+
+    [ -n "$_sysroot" ] || { printf '%s\n' "stage1-install: sysroot required" >&2; return 1; }
+    [ -d "$_sysroot" ] || { printf '%s\n' "stage1-install: sysroot not found: $_sysroot" >&2; return 1; }
+
+    [ -r "$STAGE1_INSTALL_ROOT/reinstall/reinstall.sh" ] || { printf '%s\n' "stage1-install: missing reinstall bundle: $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ROOT/reinstall/trans.sh" ] || { printf '%s\n' "stage1-install: missing reinstall bundle: $STAGE1_INSTALL_ROOT/reinstall/trans.sh" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ROOT/reinstall/initrd-network.sh" ] || { printf '%s\n' "stage1-install: missing reinstall bundle: $STAGE1_INSTALL_ROOT/reinstall/initrd-network.sh" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch" ] || { printf '%s\n' "stage1-install: missing patch: $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ADAPTER" ] || { printf '%s\n' "stage1-install: missing adapter: $STAGE1_INSTALL_ADAPTER" >&2; return 1; }
+    [ -r "$_config" ] || { printf '%s\n' "stage1-install: missing config: $_config" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh" ] || { printf '%s\n' "stage1-install: missing proxy profile: $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" ] || { printf '%s\n' "stage1-install: missing firstboot: $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" >&2; return 1; }
+
+    cat <<EOF
+mkdir -p $_sysroot/usr/local/sbin $_sysroot/etc/netinstall $_sysroot/etc/profile.d $_sysroot/etc/local.d
+cp $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh $_sysroot/usr/local/sbin/reinstall.sh
+chmod +x $_sysroot/usr/local/sbin/reinstall.sh
+( cd $_sysroot/usr/local/sbin && patch -p2 -i $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch )
+cp $STAGE1_INSTALL_ROOT/reinstall/trans.sh $_sysroot/usr/local/sbin/trans.sh
+cp $STAGE1_INSTALL_ROOT/reinstall/initrd-network.sh $_sysroot/usr/local/sbin/initrd-network.sh
+cp $STAGE1_INSTALL_ADAPTER $_sysroot/usr/local/sbin/reinstall-adapter
+chmod +x $_sysroot/usr/local/sbin/reinstall-adapter
+cp $_config $_sysroot/etc/netinstall/config.json
+cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $_sysroot/etc/profile.d/99-proxy.sh
+cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $_sysroot/etc/local.d/stage1.start
+chmod +x $_sysroot/etc/local.d/stage1.start
+chroot $_sysroot /sbin/rc-update add local default
+EOF
+}
+
+# stage1_install_run <sysroot> [config]
+# Thin executor: validate + build the plan, then emit it (DRY_RUN=1) or execute
+# each line under `sh -e`. A failed plan (missing sysroot/source) returns
+# non-zero without executing anything.
+stage1_install_run() {
+    _sysroot=${1:-}
+    _config=${2:-${NETINSTALL_CONFIG:-/etc/netinstall/config.json}}
+    _plan=$(stage1_install_plan "$_sysroot" "$_config") || return $?
+    if [ "${DRY_RUN:-0}" = 1 ]; then
+        printf '%s\n' "$_plan"
+        return 0
+    fi
+    printf '%s\n' "$_plan" | sh -e
+}
+
+# Run only when executed as the `stage1-install` command (not when sourced by a
+# test).
+case "$(basename "$0")" in
+    stage1-install) stage1_install_run "$@" ;;
+esac
