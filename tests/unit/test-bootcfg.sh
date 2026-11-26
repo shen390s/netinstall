@@ -65,7 +65,9 @@ assert_contains "menu.ipxe references vmlinuz-lts" "vmlinuz-lts" "$menu"
 assert_contains "menu.ipxe references initramfs-stage0" "initramfs-stage0" "$menu"
 assert_contains "menu.ipxe references modloop-lts" "modloop-lts" "$menu"
 assert_contains "menu.ipxe sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$menu"
-assert_contains "menu.ipxe sets modloop cmdline token" "modloop=" "$menu"
+assert_contains "menu.ipxe sets modloop=none" "modloop=none" "$menu"
+assert_contains "menu.ipxe sets console=ttyS0" "console=ttyS0" "$menu"
+assert_contains "menu.ipxe loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$menu"
 assert_contains "menu.ipxe uses an HTTP server URL" "http://" "$menu"
 
 # ---------------------------------------------------------------------------
@@ -91,7 +93,9 @@ assert_contains "grub.cfg loads linux /vmlinuz-lts" "linux /vmlinuz-lts" "$grub"
 assert_contains "grub.cfg loads initrd /initramfs-stage0" "initrd /initramfs-stage0" "$grub"
 assert_contains "grub.cfg references modloop-lts" "modloop-lts" "$grub"
 assert_contains "grub.cfg sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$grub"
-assert_contains "grub.cfg sets modloop cmdline token" "modloop=" "$grub"
+assert_contains "grub.cfg sets modloop=none" "modloop=none" "$grub"
+assert_contains "grub.cfg sets console=ttyS0" "console=ttyS0" "$grub"
+assert_contains "grub.cfg loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$grub"
 
 # ---------------------------------------------------------------------------
 # (4) identical artifact names across all three configs

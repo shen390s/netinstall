@@ -6,7 +6,7 @@
 # stage1 sources, and the local.d boot hook) into a target root at the container
 # paths that stage0/features.d/stage0.files references, normalizes +x on every
 # command-invoked script (menu/disk-prep/rescue are committed 0644 but are
-# exec'd as commands), and runs `mkinitfs -F "base network stage0"` to produce the
+# exec'd as commands), and runs `mkinitfs -F "base network cdrom ata nvme scsi usb virtio ext4 stage0"` to produce the
 # initramfs.
 #
 # Two layers, mirroring the other stage0 components:
@@ -115,7 +115,7 @@ EOF
     printf 'chmod +x %s/stage1/etc/local.d/stage1.start\n' "$_target"
 
     # Build the initramfs: base (busybox + init) plus the stage0 feature.
-    printf "mkinitfs -b %s -F 'base network stage0' -P %s -o %s %s\n" "$_basedir" "$_features" "$_out" "$_kver"
+    printf "mkinitfs -b %s -F 'base network cdrom ata nvme scsi usb virtio ext4 stage0' -P %s -o %s %s\n" "$_basedir" "$_features" "$_out" "$_kver"
 }
 
 # build_initramfs_run

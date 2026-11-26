@@ -1,0 +1,6 @@
+# Kernel modules for the stage0 runtime (mkinitfs feature <name>.modules).
+# The stage0 image skips the modloop (modloop=none), so the drivers the stage0
+# actually needs — the target disk's block drivers and the filesystems it
+# partitions/formats/mounts — are baked in here alongside the `ata nvme scsi
+# usb virtio ext4` features.
+kernel/fs/fat
