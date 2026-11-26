@@ -35,7 +35,7 @@ disk_enumerate() {
         if disk_parse "$_line"; then
             printf '%s|%s|%s|%s\n' "$name" "$model" "$serial" "$size"
         fi
-    done < "${1:-/dev/stdin}"
+    done < "${1:-/proc/self/fd/0}"
 }
 
 # disk_list
