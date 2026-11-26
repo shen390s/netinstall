@@ -41,8 +41,13 @@ disk_enumerate() {
 # disk_list
 # Enumerate all block devices with identity. This is the single side-effecting
 # entry point (runs lsblk); the parsing logic above is the testable pure core.
+# Writes lsblk output to a temp file (not a pipe) so disk_enumerate reads a
+# plain file regardless of the surrounding fd/stdin context.
 disk_list() {
-    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE 2>/dev/null | disk_enumerate
+    _tmp=${TMPDIR:-/tmp}/disk-list.$$
+    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE > "$_tmp" 2>/dev/null
+    disk_enumerate "$_tmp"
+    rm -f "$_tmp"
 }
 
 # disk_by_id_path <model> <serial>
