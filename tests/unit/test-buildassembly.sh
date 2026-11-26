@@ -114,6 +114,7 @@ assert_not_contains "plan does not place menu.ipxe under boot/" "netboot/boot/me
 assert_contains "plan references boot/dnsmasq.conf" "dnsmasq.conf" "$plan"
 assert_contains "plan references boot/grub.cfg" "boot/grub.cfg" "$plan"
 assert_contains "plan delegates to build-initramfs.sh" "build-initramfs.sh" "$plan"
+assert_contains "plan creates the output root" "mkdir -p '$OUT_DIR'" "$plan"
 
 # (3) grub-mkrescue for the hybrid ISO (BIOS + UEFI)
 assert_contains "plan invokes grub-mkrescue" "grub-mkrescue" "$plan"

@@ -94,6 +94,9 @@ build_assemble_plan() {
         return 1
     fi
 
+    # (0) ensure the output root exists before any step writes into it.
+    printf "mkdir -p '%s'\n" "$_out"
+
     # (1) build the stage0 initramfs (delegate to stage0/build-initramfs.sh).
     _builder_env="DRY_RUN=$_dry REPO_ROOT='$_repo' MKINITFS_OUT='$_initramfs'"
     if [ -n "${KERNEL_VERSION:-}" ]; then
