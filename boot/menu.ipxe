@@ -19,6 +19,6 @@
 dhcp
 set base-url http://${net0/next-server}/
 
-kernel ${base-url}vmlinuz-lts console=tty0 console=ttyS0 modules=ahci,nvme,sd_mod,usb_storage,xhci_hcd,virtio_blk,ext4,vfat,fat alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main modloop=none apkovl=/stage0.apkovl.tar.gz pkgs=dialog,parted,sfdisk,grub,grub-bios,grub-efi,dropbear,busybox-extras,alpine-conf,patch
+kernel ${base-url}vmlinuz-lts console=tty0 console=ttyS0 modules=ahci,nvme,sd_mod,virtio_scsi,mptspi,megaraid_sas,usb_storage,xhci_hcd,virtio_blk,ext4,vfat,fat alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main modloop=none apkovl=/stage0.apkovl.tar.gz pkgs=dialog,parted,sfdisk,lsblk,grub,grub-bios,grub-efi,dropbear,busybox-extras,alpine-conf,patch
 initrd ${base-url}initramfs-stage0
 boot

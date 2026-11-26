@@ -69,6 +69,8 @@ assert_contains "menu.ipxe sets modloop=none" "modloop=none" "$menu"
 assert_contains "menu.ipxe sets console=tty0" "console=tty0" "$menu"
 assert_contains "menu.ipxe sets console=ttyS0" "console=ttyS0" "$menu"
 assert_contains "menu.ipxe loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$menu"
+assert_contains "menu.ipxe loads SCSI controller drivers" "virtio_scsi" "$menu"
+assert_contains "menu.ipxe installs lsblk" "lsblk" "$menu"
 assert_contains "menu.ipxe uses an HTTP server URL" "http://" "$menu"
 
 # ---------------------------------------------------------------------------
@@ -98,6 +100,8 @@ assert_contains "grub.cfg sets modloop=none" "modloop=none" "$grub"
 assert_contains "grub.cfg sets console=tty0" "console=tty0" "$grub"
 assert_contains "grub.cfg sets console=ttyS0" "console=ttyS0" "$grub"
 assert_contains "grub.cfg loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$grub"
+assert_contains "grub.cfg loads SCSI controller drivers" "virtio_scsi" "$grub"
+assert_contains "grub.cfg installs lsblk" "lsblk" "$grub"
 
 # ---------------------------------------------------------------------------
 # (4) identical artifact names across all three configs
