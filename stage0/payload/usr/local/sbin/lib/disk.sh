@@ -20,6 +20,7 @@ disk_parse() {
     model=$(printf '%s\n' "$_line" | sed -n 's/.*MODEL="\([^"]*\)".*/\1/p')
     serial=$(printf '%s\n' "$_line" | sed -n 's/.*SERIAL="\([^"]*\)".*/\1/p')
     size=$(printf '%s\n' "$_line" | sed -n 's/.*SIZE="\([^"]*\)".*/\1/p')
+    type=$(printf '%s\n' "$_line" | sed -n 's/.*TYPE="\([^"]*\)".*/\1/p')
     [ -n "$name" ] || return 1
     return 0
 }
@@ -33,6 +34,9 @@ disk_enumerate() {
             '') continue ;;
         esac
         if disk_parse "$_line"; then
+            case "$type" in
+                rom|loop) continue ;;
+            esac
             printf '%s|%s|%s|%s\n' "$name" "$model" "$serial" "$size"
         fi
     done < "${1:-/proc/self/fd/0}"
@@ -45,7 +49,7 @@ disk_enumerate() {
 # plain file regardless of the surrounding fd/stdin context.
 disk_list() {
     _tmp=${TMPDIR:-/tmp}/disk-list.$$
-    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE > "$_tmp" 2>"$_tmp.err"
+    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE,TYPE > "$_tmp" 2>"$_tmp.err"
     _out=$(disk_enumerate "$_tmp")
     if [ -z "$_out" ]; then
         echo "disk.sh: no disks parsed; lsblk stdout:" >&2
