@@ -2,12 +2,13 @@
 # build-initramfs — build the stage0 initramfs from the mkinitfs feature
 # (stage0-netboot-image, task 3.3).
 #
-# Installs the complete stage0 payload (scripts, config, reinstall bundle,
-# stage1 sources, and the local.d boot hook) into a target root at the container
-# paths that stage0/features.d/stage0.files references, normalizes +x on every
-# command-invoked script (menu/disk-prep/rescue are committed 0644 but are
-# exec'd as commands), and runs `mkinitfs -F "base network cdrom ata nvme scsi usb virtio ext4 stage0"` to produce the
-# initramfs.
+# Packages the complete stage0 payload (scripts, config, reinstall bundle,
+# stage1 sources, and the local.d boot hook) into an apkovl (tar.gz), normalizes
+# +x on every command-invoked script (menu/disk-prep/rescue are committed 0644
+# but exec'd as commands), and runs `mkinitfs -F "base network cdrom ata nvme scsi usb virtio ext4 stage0"` to produce the
+# initramfs with the apkovl baked in (stage0.files = /stage0.apkovl.tar.gz).
+# initramfs-init extracts the apkovl into the live root (apkovl= cmdline), so
+# the payload survives switch_root and local.d runs the menu.
 #
 # Two layers, mirroring the other stage0 components:
 #   1. build_initramfs_plan — a pure, testable core that emits the install map,
@@ -37,10 +38,10 @@ if [ "${0##*/}" = build-initramfs.sh ]; then
 fi
 
 # build_initramfs_install_map
-# Emit the repo-source -> container-destination install map, one "src dst" pair
+# Emit the repo-source -> apkovl-destination install map, one "src dst" pair
 # per line. This is the single authoritative list of stage0 payload files the
-# helper installs; stage0/features.d/stage0.files mirrors the destination paths
-# (plus the apk-provided tool binaries).
+# helper packages into the apkovl (the destination paths are absolute in the
+# booted live root; the tool binaries are installed separately via pkgs=).
 build_initramfs_install_map() {
     _p="$REPO_ROOT/stage0/payload"
     _b="$REPO_ROOT/reinstall"
@@ -91,30 +92,45 @@ EOF
         return 1
     fi
 
-    # Destination directories.
-    printf 'mkdir -p %s/usr/local/sbin %s/usr/local/sbin/lib %s/etc/netinstall %s/etc/local.d %s/reinstall/patches %s/stage1/etc/profile.d %s/stage1/etc/local.d\n' \
-        "$_target" "$_target" "$_target" "$_target" "$_target" "$_target" "$_target"
+    # Stage the payload into a temp dir (paths relative to the apkovl root, so
+    # the tar entries have no leading slash — what initramfs-init's unpack_apkovl
+    # expects).
+    _stage=${APKOVL_STAGE:-"$_target/tmp/apkovl-stage"}
+    _apkovl=${APKOVL_OUT:-"$_target/stage0.apkovl.tar.gz"}
+    printf 'rm -rf %s && mkdir -p %s/usr/local/sbin/lib %s/etc/netinstall %s/etc/local.d %s/reinstall/patches %s/stage1/etc/profile.d %s/stage1/etc/local.d\n' \
+        "$_stage" "$_stage" "$_stage" "$_stage" "$_stage" "$_stage" "$_stage"
 
-    # Install map.
+    # Install map into the staging dir.
     while read -r _src _dst; do
         [ -n "$_src" ] || continue
-        printf 'cp %s %s%s\n' "$_src" "$_target" "$_dst"
+        printf 'cp %s %s%s\n' "$_src" "$_stage" "$_dst"
     done <<EOF
 $_map
 EOF
 
     # Boot hook: OpenRC local.d entry that hands control to the orchestrator.
-    printf '%s\n' "printf '%s\\n' '#!/bin/sh' 'exec /usr/local/sbin/stage0-main' > $_target/etc/local.d/stage0.start"
+    printf '%s\n' "printf '%s\\n' '#!/bin/sh' 'exec /usr/local/sbin/stage0-main' > $_stage/etc/local.d/stage0.start"
 
     # Normalize +x on every command-invoked script (menu/disk-prep/rescue are
     # committed 0644; the others are +x but normalized for idempotency).
     for _exe in stage0-main menu disk-prep stage1-install reinstall-adapter rescue; do
-        printf 'chmod +x %s/usr/local/sbin/%s\n' "$_target" "$_exe"
+        printf 'chmod +x %s/usr/local/sbin/%s\n' "$_stage" "$_exe"
     done
-    printf 'chmod +x %s/etc/local.d/stage0.start\n' "$_target"
-    printf 'chmod +x %s/stage1/etc/local.d/stage1.start\n' "$_target"
+    printf 'chmod +x %s/etc/local.d/stage0.start\n' "$_stage"
+    printf 'chmod +x %s/stage1/etc/local.d/stage1.start\n' "$_stage"
 
-    # Build the initramfs: base (busybox + init) plus the stage0 feature.
+    # Enable the OpenRC `local` service (runs /etc/local.d/*.start) at the default
+    # runlevel. initramfs-init skips its default service list when an apkovl is
+    # present, so the apkovl must enable it itself.
+    printf 'mkdir -p %s/etc/runlevels/default\n' "$_stage"
+    printf 'ln -s /etc/init.d/local %s/etc/runlevels/default/local\n' "$_stage"
+
+    # Package the staged payload as an apkovl for initramfs-init to extract into
+    # the live root before switch_root.
+    printf 'tar -czf %s -C %s .\n' "$_apkovl" "$_stage"
+
+    # Build the initramfs: base (busybox + init) plus the stage0 feature (which
+    # bakes the apkovl).
     printf "mkinitfs -b %s -F 'base network cdrom ata nvme scsi usb virtio ext4 stage0' -P %s -o %s %s\n" "$_basedir" "$_features" "$_out" "$_kver"
 }
 

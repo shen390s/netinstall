@@ -1,67 +1,14 @@
-# stage0.files — mkinitfs feature: bake the complete stage0 payload into the
-# initramfs (stage0-netboot-image, task 3.3).
+# stage0.files — mkinitfs feature: bake the stage0 apkovl into the initramfs
+# (stage0-netboot-image).
 #
-# Each non-comment line is an absolute container path. mkinitfs resolves it
-# against the build root (`mkinitfs -b`, default /), so a leading slash is
-# normalized away and an entry may equally be written relative. A directory is
-# included recursively (every regular file under it). `#` starts a comment; the
-# `base` feature (via `mkinitfs -F "base stage0"`) already supplies busybox,
-# sh, modprobe, mdev, apk and the /init (initramfs-init) entrypoint.
-
-# --- stage0 payload: command scripts (normalized +x by build-initramfs.sh) ---
-/usr/local/sbin/stage0-main
-/usr/local/sbin/menu
-/usr/local/sbin/disk-prep
-/usr/local/sbin/stage1-install
-/usr/local/sbin/reinstall-adapter
-/usr/local/sbin/rescue
-
-# --- stage0 payload: sourced helper libraries ---
-/usr/local/sbin/lib/net.sh
-/usr/local/sbin/lib/disk.sh
-/usr/local/sbin/lib/proxy.sh
-
-# --- stage0 payload: configuration data ---
-/etc/netinstall/config.schema.json
-/etc/netinstall/os-catalog.json
-
-# --- stage0 boot hook: OpenRC local.d entry -> exec stage0-main (the hook file
-#     is authored by build-initramfs.sh at build time) ---
-/etc/local.d/stage0.start
-
-# --- reinstall bundle (pinned upstream + proxy patch; consumed by
-#     stage1-install / reinstall-adapter) ---
-/reinstall/reinstall.sh
-/reinstall/trans.sh
-/reinstall/initrd-network.sh
-/reinstall/patches/proxy-env.patch
-
-# --- stage1 payload sources (copied into the disk-installed system by
-#     stage1-install) ---
-/stage1/etc/profile.d/99-proxy.sh
-/stage1/etc/local.d/stage1.start
-
-# --- required tool binaries (apk-provided in the build container) ---
-# TUI toolkit (configuration menu)
-/usr/bin/dialog
-# partition utilities
-/usr/sbin/parted
-/sbin/sfdisk
-# bootloader: grub-install + helpers + BIOS/UEFI modules (disk-prep)
-/usr/sbin/grub-install
-/usr/sbin/grub-bios-setup
-/usr/bin/grub-mkimage
-/usr/sbin/grub-probe
-/usr/sbin/grub-mkconfig
-/usr/lib/grub/i386-pc/
-/usr/lib/grub/x86_64-efi/
-# rescue SSH server + host-key generation (dropbear)
-/usr/sbin/dropbear
-/usr/bin/dropbearkey
-# HTTP progress log (busybox httpd applet / busybox-extras)
-/usr/sbin/httpd
-# disk install + proxy-patch helpers (alpine-conf setup-disk; patch)
-/usr/sbin/setup-disk
-/usr/bin/patch
-# ncurses terminfo database (so the dialog menu renders in the booted image)
-/etc/terminfo
+# The stage0 payload (scripts, config, reinstall bundle, stage1 sources, and the
+# local.d boot hook) is packaged by build-initramfs.sh as a single apkovl
+# (tar.gz) at /stage0.apkovl.tar.gz. initramfs-init extracts it into the live
+# root before switch_root (via `apkovl=/stage0.apkovl.tar.gz` on the cmdline),
+# so the payload survives into the booted system and local.d runs the menu.
+#
+# The tool binaries (dialog, parted, sfdisk, grub, dropbear, httpd, setup-disk,
+# patch) are installed from the apk repo via the `pkgs=` cmdline instead of
+# being baked here — anything baked only into the initramfs is lost on
+# switch_root, and apk resolves their library dependencies.
+/stage0.apkovl.tar.gz
