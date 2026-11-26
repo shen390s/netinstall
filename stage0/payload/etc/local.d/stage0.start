@@ -13,4 +13,11 @@ done
 killall getty 2>/dev/null
 killall agetty 2>/dev/null
 
-exec /usr/local/sbin/stage0-main
+# Launch the installer on every available console (VGA tty1 and serial ttyS0),
+# so it is visible whether the operator is attached via VNC or IPMI serial.
+for tty in tty1 ttyS0 ttyAMA0 hvc0; do
+    [ -c "/dev/$tty" ] || continue
+    ( TERM=vt100 exec /usr/local/sbin/stage0-main < "/dev/$tty" > "/dev/$tty" 2>&1 ) &
+done
+
+wait

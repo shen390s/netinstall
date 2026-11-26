@@ -66,6 +66,7 @@ assert_contains "menu.ipxe references initramfs-stage0" "initramfs-stage0" "$men
 assert_contains "menu.ipxe references modloop-lts" "modloop-lts" "$menu"
 assert_contains "menu.ipxe sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$menu"
 assert_contains "menu.ipxe sets modloop=none" "modloop=none" "$menu"
+assert_contains "menu.ipxe sets console=tty0" "console=tty0" "$menu"
 assert_contains "menu.ipxe sets console=ttyS0" "console=ttyS0" "$menu"
 assert_contains "menu.ipxe loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$menu"
 assert_contains "menu.ipxe uses an HTTP server URL" "http://" "$menu"
@@ -94,6 +95,7 @@ assert_contains "grub.cfg loads initrd /initramfs-stage0" "initrd /initramfs-sta
 assert_contains "grub.cfg references modloop-lts" "modloop-lts" "$grub"
 assert_contains "grub.cfg sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$grub"
 assert_contains "grub.cfg sets modloop=none" "modloop=none" "$grub"
+assert_contains "grub.cfg sets console=tty0" "console=tty0" "$grub"
 assert_contains "grub.cfg sets console=ttyS0" "console=ttyS0" "$grub"
 assert_contains "grub.cfg loads disk drivers via modules=" "modules=ahci,nvme,sd_mod" "$grub"
 
