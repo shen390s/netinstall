@@ -28,7 +28,21 @@ for tty in tty1 ttyS0 ttyAMA0 hvc0; do
         tty[0-9]*) _term=linux ;;
         *) _term=vt100 ;;
     esac
-    ( TERM=$_term exec /usr/local/sbin/stage0-main < "/dev/$tty" > "/dev/$tty" 2>&1 ) &
+    (
+        # Ensure a non-zero terminal size before the menu runs. A 0x0 window
+        # size (seen on VGA consoles under noVNC) makes dialog draw an empty
+        # box that only paints after the first keypress. `resize` asks the
+        # terminal for its real size (DSR cursor-position query on stderr, the
+        # reply read from stdin) and prints COLUMNS=..;LINES=.. on stdout; apply
+        # it, then fall back to a sane default when the console reports none.
+        _rsz=$(timeout 5 resize < "/dev/$tty" 2> "/dev/$tty" 2>/dev/null)
+        eval "$_rsz" 2>/dev/null || true
+        case "$COLUMNS" in ''|0|*[!0-9]*) COLUMNS=80 ;; esac
+        case "$LINES"   in ''|0|*[!0-9]*) LINES=24  ;; esac
+        export COLUMNS LINES
+        stty rows "$LINES" cols "$COLUMNS" < "/dev/$tty" 2>/dev/null || true
+        TERM=$_term exec /usr/local/sbin/stage0-main < "/dev/$tty" > "/dev/$tty" 2>&1
+    ) &
 done
 
 wait

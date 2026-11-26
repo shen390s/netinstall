@@ -119,6 +119,8 @@ if [ -r "$hook_file" ]; then
     assert_contains "hook defaults TERM to linux" "export TERM=linux" "$hook"
     assert_contains "hook auto-detects linux for VGA consoles" "tty[0-9]*) _term=linux" "$hook"
     assert_contains "hook auto-detects vt100 for serial consoles" "*) _term=vt100" "$hook"
+    assert_contains "hook sizes the terminal before dialog" "timeout 5 resize" "$hook"
+    assert_contains "hook falls back to 80 columns when size is unknown" "COLUMNS=80" "$hook"
     assert_contains "hook disables getty" "killall getty" "$hook"
     assert_contains "hook execs the orchestrator" "exec /usr/local/sbin/stage0-main" "$hook"
 else
