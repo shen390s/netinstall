@@ -128,7 +128,9 @@ build_assemble_plan() {
     printf "cp '%s' '%s/initramfs-stage0'\n" "$_initramfs" "$_isotree"
     printf "cp '%s' '%s/modloop-lts'\n" "$_modloop" "$_isotree"
     printf "cp '%s' '%s/boot/grub/grub.cfg'\n" "$_grub_cfg" "$_isotree"
-    printf "%s -o '%s' '%s'\n" "$_grub_mkrescue" "$_iso" "$_isotree"
+    # Sort the kernel and initramfs to low LBAs (high sort weight) so grub reads
+    # them reliably; the large modloop is never read by grub and sorts last.
+    printf "%s -o '%s' --sort-weight 100 vmlinuz-lts --sort-weight 90 initramfs-stage0 '%s'\n" "$_grub_mkrescue" "$_iso" "$_isotree"
 
     # (4) produce the raw USB image (a dd-able copy of the hybrid ISO).
     printf '%s\n' '# produce raw USB image (dd-able copy of the hybrid ISO)'

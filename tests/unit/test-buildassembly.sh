@@ -120,6 +120,8 @@ assert_contains "plan creates the output root" "mkdir -p '$OUT_DIR'" "$plan"
 assert_contains "plan invokes grub-mkrescue" "grub-mkrescue" "$plan"
 assert_contains "plan targets BIOS i386-pc" "i386-pc" "$plan"
 assert_contains "plan targets UEFI x86_64-efi" "x86_64-efi" "$plan"
+assert_contains "plan sorts kernel to low LBA" "--sort-weight 100 vmlinuz-lts" "$plan"
+assert_contains "plan sorts initramfs to low LBA" "--sort-weight 90 initramfs-stage0" "$plan"
 
 # ---------------------------------------------------------------------------
 # (4) fail closed on a missing input
