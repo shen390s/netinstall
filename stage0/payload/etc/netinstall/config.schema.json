@@ -9,13 +9,13 @@
   "properties": {
     "targetDisk": {
       "type": "object",
-      "description": "The confirmed target disk, pinned by its /dev/disk/by-id path and identity.",
-      "required": ["id", "model", "serial", "size"],
+      "description": "The confirmed target disk. Pinned by a stable /dev/disk/by-id path when the disk exposes a serial/WWN, or by a plain /dev/<name> path for disks without one (e.g. virtual disks).",
+      "required": ["id", "size"],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
-          "description": "/dev/disk/by-id path, e.g. wwn-0x5000c500a1234567"
+          "description": "/dev/disk/by-id path (e.g. wwn-0x5000c500a1234567) or a plain /dev/<name> path for disks without a stable id"
         },
         "model": { "type": "string" },
         "serial": { "type": "string" },

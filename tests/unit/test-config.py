@@ -135,6 +135,15 @@ _SAMPLE_DISK = {
     "size": "500107862016",
 }
 
+# A disk without a serial (e.g. a QEMU/Proxmox drive with no serial set) falls
+# back to a plain /dev/<name> path and an empty serial, and must still validate.
+_SAMPLE_DISK_FALLBACK = {
+    "id": "/dev/sda",
+    "model": "QEMU HARDDISK",
+    "serial": "",
+    "size": "134217728",
+}
+
 SAMPLE_VALID = {
     "targetDisk": _SAMPLE_DISK,
     "os": {
@@ -206,7 +215,8 @@ def check_schema_structure(schema):
 
     props = schema["properties"]
     assert props["targetDisk"]["type"] == "object"
-    assert {"id", "model", "serial", "size"} <= set(props["targetDisk"].get("required", []))
+    assert {"id", "size"} <= set(props["targetDisk"].get("required", []))
+    assert {"model", "serial"} <= set(props["targetDisk"]["properties"])
 
     assert props["os"]["type"] == "object"
     assert props["os"]["properties"]["category"].get("enum") == ["linux", "windows", "dd"], \
@@ -254,6 +264,14 @@ def check_windows_missing_extra_fails(schema):
     bad["os"]["extra"] = {"lang": "en-us"}
     assert validate(bad, schema) != [], \
         "windows config missing extra.imageName must be rejected"
+
+
+def check_fallback_disk_validates(schema):
+    # A disk without a serial uses a plain /dev/<name> path and empty serial.
+    sample = json.loads(json.dumps(SAMPLE_VALID))
+    sample["targetDisk"] = _SAMPLE_DISK_FALLBACK
+    assert validate(sample, schema) == [], \
+        f"fallback /dev/sda disk (empty serial) should validate, got: {validate(sample, schema)}"
 
 
 def check_catalog(catalog):
@@ -313,6 +331,8 @@ def main():
         ("missing network rejected", lambda: check_missing_network_fails(schema)),
         ("windows missing extra.imageName rejected",
          lambda: check_windows_missing_extra_fails(schema)),
+        ("fallback /dev/sda disk with empty serial validates",
+         lambda: check_fallback_disk_validates(schema)),
         ("os-catalog is valid JSON, non-empty, versioned",
          lambda: check_catalog(catalog)),
         ("os-catalog argv syntax matches reinstall.sh",

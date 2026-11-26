@@ -193,17 +193,33 @@ RC=$?
 assert_return_fail "empty disk rejected" "$RC"
 assert_eq "empty disk emits no config" "" "$OUT"
 
-# A non-by-id device path is also rejected.
+# A plain /dev/<name> fallback (disks without a by-id symlink, e.g. a virtual
+# disk with no serial) is accepted, with model/serial allowed to be empty.
 OUT=$(menu_config_emit \
-    /dev/sda "$DISK_MODEL" "$DISK_SERIAL" "$DISK_SIZE" \
+    /dev/sda "QEMU HARDDISK" "" "134217728" \
     linux debian 12 "" "" "" \
     "" "" "" "" \
     dhcp "" "" "" \
     "" "" "" "" "" \
     yes 2>/dev/null)
 RC=$?
-assert_return_fail "non-by-id disk id rejected" "$RC"
-assert_eq "non-by-id disk emits no config" "" "$OUT"
+assert_return_ok "plain /dev/<name> disk with empty serial accepted" "$RC"
+assert_contains "fallback disk id emitted" '"id":"/dev/sda"' "$OUT"
+assert_contains "empty serial emitted" '"serial":""' "$OUT"
+menu_config_validate "$OUT" 2>/dev/null
+assert_return_ok "fallback disk config validates" "$?"
+
+# A non-/dev id is still rejected.
+OUT=$(menu_config_emit \
+    sda "$DISK_MODEL" "$DISK_SERIAL" "$DISK_SIZE" \
+    linux debian 12 "" "" "" \
+    "" "" "" "" \
+    dhcp "" "" "" \
+    "" "" "" "" "" \
+    yes 2>/dev/null)
+RC=$?
+assert_return_fail "non-/dev disk id rejected" "$RC"
+assert_eq "non-/dev disk id emits no config" "" "$OUT"
 
 # ---------------------------------------------------------------------------
 # Windows / dd per-category `extra` fields round-trip and are validated.

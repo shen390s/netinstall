@@ -62,16 +62,19 @@ menu_json_get_str() {
 # ---------------------------------------------------------------------------
 
 # menu_validate_disk <id> <model> <serial> <size>
-# Return 0 if the disk identity is complete and <id> is a stable by-id path.
+# Return 0 if the disk has an essential identity: a /dev/ device path — either a
+# stable /dev/disk/by-id/... path when the disk exposes a serial/WWN, or a plain
+# /dev/<name> fallback for disks without one — plus a non-empty size. model and
+# serial are informational and may be empty for the /dev/<name> fallback.
 menu_validate_disk() {
     _id=${1:-}; _model=${2:-}; _serial=${3:-}; _size=${4:-}
-    if [ -z "$_id" ] || [ -z "$_model" ] || [ -z "$_serial" ] || [ -z "$_size" ]; then
-        echo "menu: target disk identity incomplete (id/model/serial/size required)" >&2
+    if [ -z "$_id" ] || [ -z "$_size" ]; then
+        echo "menu: target disk identity incomplete (id and size required)" >&2
         return 1
     fi
     case "$_id" in
-        /dev/disk/by-id/*) return 0 ;;
-        *) echo "menu: target disk id must be a /dev/disk/by-id path: $_id" >&2; return 1 ;;
+        /dev/*) return 0 ;;
+        *) echo "menu: target disk id must be a /dev/ path: $_id" >&2; return 1 ;;
     esac
 }
 
@@ -90,6 +93,17 @@ menu_os_supported() {
 menu_catalog_list() {
     sed -n 's/.*"category": "\([^"]*\)", "distro": "\([^"]*\)", "version": "\([^"]*\)".*/\1|\2|\3/p' \
         "$MENU_OS_CATALOG"
+}
+
+# menu_catalog_label <category> <distro> <version>
+# Human label for an OS menu entry. dd/windows use placeholder distro/version
+# values ("dd"/"any"), so show a description instead of "dd dd any".
+menu_catalog_label() {
+    case "$1" in
+        dd)      printf 'dd - disk image from URL' ;;
+        windows) printf 'windows - pick edition and language' ;;
+        *)       printf '%s %s %s' "$1" "$2" "$3" ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -283,7 +297,7 @@ menu_config_validate() {
         esac
     done
 
-    for _k in id model serial size category distro version mode; do
+    for _k in id size category distro version mode; do
         [ -n "$(menu_json_get_str "$_cfg" "$_k")" ] || {
             echo "menu: missing/empty required field [$_k]" >&2
             return 1
@@ -400,7 +414,7 @@ EOF
     set --
     while IFS='|' read -r _cat _distro _ver; do
         [ -n "$_cat" ] || continue
-        set -- "$@" "$_cat|$_distro|$_ver" "$_cat  $_distro  $_ver"
+        set -- "$@" "$_cat|$_distro|$_ver" "$(menu_catalog_label "$_cat" "$_distro" "$_ver")"
     done <<EOF
 $(menu_catalog_list)
 EOF
