@@ -58,28 +58,33 @@ disk_prep_plan() {
         return 1
     }
 
-    # (2) Resolve the by-id symlink to the real device name it points at.
-    _link_target=$(readlink "$_disk_id" 2>/dev/null) || {
-        echo "disk-prep: cannot resolve by-id target: $_disk_id" >&2
-        return 1
-    }
-    _dev=${_link_target##*/}
-    [ -n "$_dev" ] || {
-        echo "disk-prep: by-id target resolves to no device: $_disk_id" >&2
-        return 1
-    }
+    # (2) Resolve the target to a device name. A symlink (a /dev/disk/by-id
+    #     entry, for disks with a serial) is resolved + round-trip guarded; a
+    #     plain /dev/<name> path (disks with no by-id symlink) is used directly.
+    _link_target=$(readlink "$_disk_id" 2>/dev/null)
+    if [ -n "$_link_target" ]; then
+        _dev=${_link_target##*/}
+        [ -n "$_dev" ] || {
+            echo "disk-prep: symlink target resolves to no device: $_disk_id" >&2
+            return 1
+        }
 
-    # (3) Wrong-disk guard (requirement 6.3): the resolved device must round-trip
-    #     to exactly this by-id path. A device with no by-id entry, or one whose
-    #     stable id differs from the confirmed target, is refused.
-    _resolved=$(disk_resolve_by_id "$_dev" "$_by_id_dir" 2>/dev/null) || {
-        echo "disk-prep: device $_dev has no stable by-id entry; refusing" >&2
-        return 1
-    }
-    [ "$_resolved" = "$_disk_id" ] || {
-        echo "disk-prep: resolved device [$_resolved] is not the expected by-id target [$_disk_id]; refusing" >&2
-        return 1
-    }
+        # (3) Wrong-disk guard (requirement 6.3): the resolved device must
+        #     round-trip to exactly this by-id path.
+        _resolved=$(disk_resolve_by_id "$_dev" "$_by_id_dir" 2>/dev/null) || {
+            echo "disk-prep: device $_dev has no stable by-id entry; refusing" >&2
+            return 1
+        }
+        [ "$_resolved" = "$_disk_id" ] || {
+            echo "disk-prep: resolved device [$_resolved] is not the expected by-id target [$_disk_id]; refusing" >&2
+            return 1
+        }
+    else
+        case "$_disk_id" in
+            /dev/*) _dev=${_disk_id#/dev/} ;;
+            *) echo "disk-prep: invalid target disk id: $_disk_id" >&2; return 1 ;;
+        esac
+    fi
 
     # (4) Firmware mode -> grub target (requirement 6.2).
     _real_dev="/dev/$_dev"

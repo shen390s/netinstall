@@ -370,7 +370,7 @@ menu_main() {
     set --
     while IFS='|' read -r _name _model _serial _size; do
         [ -n "$_name" ] || continue
-        _id=$(disk_resolve_by_id "$_name") || continue
+        _id=$(disk_resolve_by_id "$_name") || _id="/dev/$_name"
         printf '%s|%s|%s|%s\n' "$_id" "$_model" "$_serial" "$_size" >> "$_disk_file"
         set -- "$@" "$_id" "$_model | $_serial | $_size"
     done <<EOF
