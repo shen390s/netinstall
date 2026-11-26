@@ -382,7 +382,13 @@ EOF
     IFS='|' read -r _disk_id _disk_model _disk_serial _disk_size <<EOF
 $(grep -F "$_chosen|" "$_disk_file" | head -n 1)
 EOF
-    [ -n "$_disk_id" ] || { echo "menu: disk selection failed" >&2; return 1; }
+    [ -n "$_disk_id" ] || {
+        echo "menu: disk selection failed" >&2
+        echo "menu: chosen=[$_chosen]" >&2
+        echo "menu: disk_file=[$(cat "$_disk_file" 2>/dev/null)]" >&2
+        echo "menu: TERM=[${TERM:-unset}]" >&2
+        return 1
+    }
 
     # --- Operating system ----------------------------------------------------
     set --
