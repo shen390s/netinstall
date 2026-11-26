@@ -151,6 +151,38 @@ assert_eq "disk_resolve_by_id unknown device emits nothing" "" "$missing"
 
 rm -rf "$tmpdir"
 
+# disk_serial_from_sysfs reads the kernel's own serial (VPD page 0x80 for SCSI,
+# the "serial" attribute for ATA/NVMe), bypassing lsblk's udev dependency.
+sroot=$(mktemp -d) || exit 1
+mkdir -p "$sroot/sda/device" "$sroot/nvme0n1/device" "$sroot/sdb/device"
+printf 'drive-scsi0\n' > "$sroot/sda/device/vpd_pg80"
+printf 'S465NX0M123456\n' > "$sroot/nvme0n1/device/serial"
+
+_sr=$(disk_serial_from_sysfs sda "$sroot"); st=$?
+assert_return_ok "disk_serial_from_sysfs reads VPD page 0x80" "$st"
+assert_eq "disk_serial_from_sysfs VPD value" "drive-scsi0" "$_sr"
+
+_sr=$(disk_serial_from_sysfs nvme0n1 "$sroot"); st=$?
+assert_return_ok "disk_serial_from_sysfs reads serial attribute" "$st"
+assert_eq "disk_serial_from_sysfs serial value" "S465NX0M123456" "$_sr"
+
+_sr=$(disk_serial_from_sysfs sdb "$sroot" 2>/dev/null); st=$?
+assert_return_fail "disk_serial_from_sysfs missing serial fails" "$st"
+assert_eq "disk_serial_from_sysfs missing serial emits nothing" "" "$_sr"
+
+# disk_fill_serial fills empty serials from sysfs and leaves present ones alone.
+_fill_in=$(printf 'sda|QEMU HARDDISK||128G\nnvme0n1|Samsung||1T\nsdb|WDC|WD123|2T\n')
+_fill_out=$(disk_fill_serial "$_fill_in" "$sroot")
+_fill_expected=$(cat <<'EOF'
+sda|QEMU HARDDISK|drive-scsi0|128G
+nvme0n1|Samsung|S465NX0M123456|1T
+sdb|WDC|WD123|2T
+EOF
+)
+assert_eq "disk_fill_serial fills empty serials from sysfs" "$_fill_expected" "$_fill_out"
+
+rm -rf "$sroot"
+
 # ---------------------------------------------------------------------------
 # proxy.sh
 # ---------------------------------------------------------------------------

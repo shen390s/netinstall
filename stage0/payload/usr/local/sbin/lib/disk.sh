@@ -42,6 +42,40 @@ disk_enumerate() {
     done < "${1:-/proc/self/fd/0}"
 }
 
+# disk_serial_from_sysfs <name> [root]
+# Print a block device's serial straight from sysfs, or nothing + non-zero.
+# SCSI disks expose it as the VPD page 0x80 unit serial number; ATA/NVMe disks
+# expose it as the "serial" attribute. lsblk's SERIAL column can be empty in a
+# system without udev (it prefers ID_SERIAL), so read the kernel's own value.
+disk_serial_from_sysfs() {
+    _name=${1:-}
+    _root=${2:-/sys/block}
+    [ -n "$_name" ] || return 1
+    for _f in "$_root/$_name/device/vpd_pg80" "$_root/$_name/device/serial"; do
+        [ -r "$_f" ] || continue
+        _s=$(sed 's/[[:space:]]*$//' "$_f" 2>/dev/null)
+        [ -n "$_s" ] && { printf '%s\n' "$_s"; return 0; }
+    done
+    return 1
+}
+
+# disk_fill_serial <name|model|serial|size lines> [root]
+# For each identity line whose serial is empty, fill it from sysfs. Purely
+# transforms its input (with a side-effecting sysfs read per empty serial).
+disk_fill_serial() {
+    _lines=${1:-}
+    _root=${2:-/sys/block}
+    while IFS='|' read -r _n _m _s _z; do
+        [ -n "$_n" ] || continue
+        if [ -z "$_s" ]; then
+            _s=$(disk_serial_from_sysfs "$_n" "$_root")
+        fi
+        printf '%s|%s|%s|%s\n' "$_n" "$_m" "$_s" "$_z"
+    done <<EOF
+$_lines
+EOF
+}
+
 # disk_list
 # Enumerate all block devices with identity. This is the single side-effecting
 # entry point (runs lsblk); the parsing logic above is the testable pure core.
@@ -56,6 +90,8 @@ disk_list() {
         cat "$_tmp" >&2
         echo "disk.sh: lsblk stderr:" >&2
         cat "$_tmp.err" >&2
+    else
+        _out=$(disk_fill_serial "$_out")
     fi
     printf '%s\n' "$_out"
     rm -f "$_tmp" "$_tmp.err"
