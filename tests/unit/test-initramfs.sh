@@ -113,6 +113,8 @@ esac
 # Boot hook: the plan must author the local.d entry that execs the orchestrator.
 assert_contains "plan authors the stage0 boot hook" \
     "exec /usr/local/sbin/stage0-main" "$plan"
+assert_contains "plan sets TERM for the dialog menu" \
+    "export TERM=vt100" "$plan"
 
 # ---------------------------------------------------------------------------
 # (4) DRY_RUN=1 performs no install / no mkinitfs

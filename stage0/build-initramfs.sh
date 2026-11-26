@@ -109,7 +109,8 @@ $_map
 EOF
 
     # Boot hook: OpenRC local.d entry that hands control to the orchestrator.
-    printf '%s\n' "printf '%s\\n' '#!/bin/sh' 'exec /usr/local/sbin/stage0-main' > $_stage/etc/local.d/stage0.start"
+    # Sets TERM so the dialog menu renders on the serial console.
+    printf '%s\n' "printf '%s\\n' '#!/bin/sh' 'export TERM=vt100' 'exec /usr/local/sbin/stage0-main' > $_stage/etc/local.d/stage0.start"
 
     # Normalize +x on every command-invoked script (menu/disk-prep/rescue are
     # committed 0644; the others are +x but normalized for idempotency).
