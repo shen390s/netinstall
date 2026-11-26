@@ -110,11 +110,19 @@ case "$plan" in
     *) fail "feature list carries base and stage0" "missing base/stage0 in: $plan" ;;
 esac
 
-# Boot hook: the plan must author the local.d entry that execs the orchestrator.
-assert_contains "plan authors the stage0 boot hook" \
-    "exec /usr/local/sbin/stage0-main" "$plan"
-assert_contains "plan sets TERM for the dialog menu" \
-    "export TERM=vt100" "$plan"
+# Boot hook: the static local.d entry (copied by the install map) takes over
+# the console and execs the orchestrator.
+hook_file="$REPO_ROOT/stage0/payload/etc/local.d/stage0.start"
+if [ -r "$hook_file" ]; then
+    hook=$(cat "$hook_file")
+    pass "boot hook file is present"
+    assert_contains "hook sets TERM for the dialog menu" "export TERM=vt100" "$hook"
+    assert_contains "hook disables getty" "killall getty" "$hook"
+    assert_contains "hook execs the orchestrator" "exec /usr/local/sbin/stage0-main" "$hook"
+else
+    fail "boot hook file is present" "missing $hook_file"
+fi
+assert_contains "plan stages the boot hook" "/etc/local.d/stage0.start" "$plan"
 
 # ---------------------------------------------------------------------------
 # (4) DRY_RUN=1 performs no install / no mkinitfs

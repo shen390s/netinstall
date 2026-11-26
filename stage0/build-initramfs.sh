@@ -58,6 +58,7 @@ $_p/usr/local/sbin/lib/disk.sh /usr/local/sbin/lib/disk.sh
 $_p/usr/local/sbin/lib/proxy.sh /usr/local/sbin/lib/proxy.sh
 $_p/etc/netinstall/config.schema.json /etc/netinstall/config.schema.json
 $_p/etc/netinstall/os-catalog.json /etc/netinstall/os-catalog.json
+$_p/etc/local.d/stage0.start /etc/local.d/stage0.start
 $_b/reinstall.sh /reinstall/reinstall.sh
 $_b/trans.sh /reinstall/trans.sh
 $_b/initrd-network.sh /reinstall/initrd-network.sh
@@ -107,10 +108,6 @@ EOF
     done <<EOF
 $_map
 EOF
-
-    # Boot hook: OpenRC local.d entry that hands control to the orchestrator.
-    # Sets TERM so the dialog menu renders on the serial console.
-    printf '%s\n' "printf '%s\\n' '#!/bin/sh' 'export TERM=vt100' 'exec /usr/local/sbin/stage0-main' > $_stage/etc/local.d/stage0.start"
 
     # Normalize +x on every command-invoked script (menu/disk-prep/rescue are
     # committed 0644; the others are +x but normalized for idempotency).

@@ -1,0 +1,16 @@
+#!/bin/sh
+# stage0 boot hook (OpenRC local.d): take over the console and launch the
+# installation menu directly, bypassing the login prompt.
+
+export TERM=vt100
+
+# Stop the login prompts so the installer owns the console. The `local` service
+# runs after getty, so remove the runlevel symlinks and kill any already-running
+# getty/agetty to clear the prompt.
+for s in /etc/runlevels/default/getty.* /etc/runlevels/default/agetty.*; do
+    [ -e "$s" ] && rm -f "$s"
+done
+killall getty 2>/dev/null
+killall agetty 2>/dev/null
+
+exec /usr/local/sbin/stage0-main
