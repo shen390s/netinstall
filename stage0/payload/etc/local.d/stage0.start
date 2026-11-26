@@ -15,9 +15,14 @@ killall agetty 2>/dev/null
 
 # Launch the installer on every available console (VGA tty1 and serial ttyS0),
 # so it is visible whether the operator is attached via VNC or IPMI serial.
+# VGA/VNC terminals are xterm (noVNC); serial consoles are vt100.
 for tty in tty1 ttyS0 ttyAMA0 hvc0; do
     [ -c "/dev/$tty" ] || continue
-    ( TERM=vt100 exec /usr/local/sbin/stage0-main < "/dev/$tty" > "/dev/$tty" 2>&1 ) &
+    case "$tty" in
+        tty[0-9]*) _term=xterm ;;
+        *) _term=vt100 ;;
+    esac
+    ( TERM=$_term exec /usr/local/sbin/stage0-main < "/dev/$tty" > "/dev/$tty" 2>&1 ) &
 done
 
 wait
