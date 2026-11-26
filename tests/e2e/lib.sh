@@ -58,6 +58,7 @@ e2e_find_ovmf() {
 # Returns 0 on success.
 e2e_build_initramfs() {
     _out=$1
+    command -v mkinitfs >/dev/null 2>&1 || { e2e_skip "mkinitfs unavailable (cannot build initramfs); run inside the build container"; return 3; }
     _kver=$(e2e_kernel_version) || return 1
     KERNEL_VERSION="$_kver" MKINITFS_OUT="$_out" \
         sh "$REPO_ROOT/stage0/build-initramfs.sh" >/dev/null 2>&1

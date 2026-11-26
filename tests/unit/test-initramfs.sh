@@ -128,7 +128,7 @@ assert_contains "plan chmods +x stage1.start" \
     "chmod +x $TARGET_ROOT/stage1/etc/local.d/stage1.start" "$plan"
 
 assert_contains "plan runs mkinitfs" "mkinitfs " "$plan"
-assert_contains "mkinitfs uses -F with base + stage0" "-F 'base stage0'" "$plan"
+assert_contains "mkinitfs uses -F with base + network + stage0" "-F 'base network stage0'" "$plan"
 case "$plan" in
     *"base"*"stage0"*) pass "feature list carries base and stage0" ;;
     *) fail "feature list carries base and stage0" "missing base/stage0 in: $plan" ;;

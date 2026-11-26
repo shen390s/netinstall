@@ -9,8 +9,9 @@
 # The HTTP server URL is derived from the DHCP next-server (the dnsmasq host
 # that also serves TFTP), so this one script works unchanged for both BIOS and
 # UEFI clients. The kernel cmdline carries the Alpine boot tokens:
-#   alpine_repo=<url>   apk repository root (self-contained here)
-#   modloop=<url>       module loopback squashfs
+#   alpine_repo=<url>   apk repository (pinned v3.21 main; initramfs-init
+#                       apk-adds alpine-base from it before switch_root)
+#   modloop=<url>       module loopback squashfs (served from this URL root)
 #
 # The build assembly (task 3.5) publishes vmlinuz-lts, initramfs-stage0, and
 # modloop-lts at this URL root on the HTTP server.
@@ -18,6 +19,6 @@
 dhcp
 set base-url http://${net0/next-server}/
 
-kernel ${base-url}vmlinuz-lts alpine_repo=${base-url} modloop=${base-url}modloop-lts
+kernel ${base-url}vmlinuz-lts alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main modloop=${base-url}modloop-lts
 initrd ${base-url}initramfs-stage0
 boot

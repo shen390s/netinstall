@@ -33,7 +33,10 @@ e2e_skip_unless "$REPO_ROOT/stage0/build-initramfs.sh" "initramfs builder"
 
 INITRD="$TMPDIR/initramfs-stage0"
 e2e_info "building stage0 initramfs"
-if ! e2e_build_initramfs "$INITRD"; then
+e2e_build_initramfs "$INITRD"
+_st=$?
+if [ "$_st" -ne 0 ]; then
+    [ "$_st" -eq 3 ] && exit 3
     e2e_fail "initramfs build failed"
     exit 1
 fi

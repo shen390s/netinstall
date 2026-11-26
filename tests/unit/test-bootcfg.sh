@@ -64,7 +64,7 @@ assert_contains "menu.ipxe boots" "boot" "$menu"
 assert_contains "menu.ipxe references vmlinuz-lts" "vmlinuz-lts" "$menu"
 assert_contains "menu.ipxe references initramfs-stage0" "initramfs-stage0" "$menu"
 assert_contains "menu.ipxe references modloop-lts" "modloop-lts" "$menu"
-assert_contains "menu.ipxe sets alpine_repo cmdline token" "alpine_repo=" "$menu"
+assert_contains "menu.ipxe sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$menu"
 assert_contains "menu.ipxe sets modloop cmdline token" "modloop=" "$menu"
 assert_contains "menu.ipxe uses an HTTP server URL" "http://" "$menu"
 
@@ -90,7 +90,7 @@ assert_contains "grub.cfg defines a menuentry" "menuentry" "$grub"
 assert_contains "grub.cfg loads linux /vmlinuz-lts" "linux /vmlinuz-lts" "$grub"
 assert_contains "grub.cfg loads initrd /initramfs-stage0" "initrd /initramfs-stage0" "$grub"
 assert_contains "grub.cfg references modloop-lts" "modloop-lts" "$grub"
-assert_contains "grub.cfg sets alpine_repo cmdline token" "alpine_repo=" "$grub"
+assert_contains "grub.cfg sets a valid alpine_repo" "alpine_repo=https://dl-cdn.alpinelinux.org/alpine/v3.21/main" "$grub"
 assert_contains "grub.cfg sets modloop cmdline token" "modloop=" "$grub"
 
 # ---------------------------------------------------------------------------
