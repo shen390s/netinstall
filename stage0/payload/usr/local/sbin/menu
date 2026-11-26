@@ -327,7 +327,7 @@ menu_config_validate() {
 menu_dialog_input() {
     _title=$1; _default=${2:-}
     _f="$MENU_TMPDIR/input"
-    dialog --inputbox "$_title" 0 0 "$_default" 2>"$_f" || return 1
+    dialog --inputbox "$_title" 0 0 "$_default" 2>"$_f" >&3 || return 1
     sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$_f"
 }
 
@@ -336,7 +336,7 @@ menu_dialog_select() {
     _title=$1
     shift
     _f="$MENU_TMPDIR/select"
-    dialog --menu "$_title" 0 0 0 "$@" 2>"$_f" || return 1
+    dialog --menu "$_title" 0 0 0 "$@" 2>"$_f" >&3 || return 1
     sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$_f"
 }
 
@@ -363,6 +363,12 @@ menu_main() {
 
     MENU_TMPDIR=$(mktemp -d) || return 1
     trap 'rm -rf "$MENU_TMPDIR"' EXIT HUP INT TERM
+
+    # Keep a handle on the real terminal. dialog draws its widgets on stdout,
+    # but the helpers below run inside command substitutions (so stdout is the
+    # pipe that captures the chosen value). Send dialog's stdout to fd 3 — the
+    # terminal — or the menu would be invisible until a keypress.
+    exec 3>&1
 
     # --- Target disk ---------------------------------------------------------
     _disk_file="$MENU_TMPDIR/disks"
@@ -464,7 +470,7 @@ EOF
 
 # menu_yesno <question> — dialog yes/no; return 0 on yes, 1 on no/cancel.
 menu_yesno() {
-    dialog --yesno "$1" 0 0
+    dialog --yesno "$1" 0 0 >&3
 }
 
 # ---------------------------------------------------------------------------
