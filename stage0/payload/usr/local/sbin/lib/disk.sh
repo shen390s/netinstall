@@ -45,9 +45,16 @@ disk_enumerate() {
 # plain file regardless of the surrounding fd/stdin context.
 disk_list() {
     _tmp=${TMPDIR:-/tmp}/disk-list.$$
-    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE > "$_tmp" 2>/dev/null
-    disk_enumerate "$_tmp"
-    rm -f "$_tmp"
+    lsblk -P -d -o NAME,MODEL,SERIAL,SIZE > "$_tmp" 2>"$_tmp.err"
+    _out=$(disk_enumerate "$_tmp")
+    if [ -z "$_out" ]; then
+        echo "disk.sh: no disks parsed; lsblk stdout:" >&2
+        cat "$_tmp" >&2
+        echo "disk.sh: lsblk stderr:" >&2
+        cat "$_tmp.err" >&2
+    fi
+    printf '%s\n' "$_out"
+    rm -f "$_tmp" "$_tmp.err"
 }
 
 # disk_by_id_path <model> <serial>
