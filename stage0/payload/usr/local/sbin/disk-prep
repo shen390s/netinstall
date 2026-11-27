@@ -23,13 +23,14 @@
 #
 # On success it emits on stdout the commands to run, one per line:
 #
-#   bios:  BOOTLOADER=grub setup-disk -m sys /dev/<dev>
-#   uefi:  USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/<dev>
+#   bios:  yes | BOOTLOADER=grub setup-disk -m sys /dev/<dev>
+#   uefi:  yes | USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/<dev>
 #
-# `BOOTLOADER=grub` selects grub as the bootloader (requirement 6.2); setup-disk
-# then installs the firmware-correct grub target itself (i386-pc for BIOS,
-# x86_64-efi when USE_EFI=1). On any guard failure it emits nothing on stdout
-# and returns non-zero.
+# `yes` answers setup-disk's "Erase the above disk(s)?" confirmation (it reads
+# stdin; a closed pipe would default to "n" and abort). `BOOTLOADER=grub`
+# selects grub (requirement 6.2); setup-disk installs the firmware-correct grub
+# target itself (i386-pc for BIOS, x86_64-efi when USE_EFI=1). On any guard
+# failure it emits nothing on stdout and returns non-zero.
 #
 # All functions are POSIX sh (busybox ash compatible); no bashisms.
 
@@ -84,17 +85,17 @@ disk_prep_plan() {
         esac
     fi
 
-    # (4) Firmware mode -> bootloader selection (requirement 6.2). setup-disk's
-    # own grub install picks the firmware-correct target; a second grub-install
-    # is redundant and would run against the live root's /boot, not the target
-    # disk (and fail).
+    # (4) Firmware mode -> bootloader selection (requirement 6.2). Pipe `yes`
+    # into setup-disk so its "Erase the above disk(s)?" prompt is auto-confirmed
+    # (a closed stdin defaults to "n" and aborts). setup-disk's own grub install
+    # picks the firmware-correct target.
     _real_dev="/dev/$_dev"
     case "$_firmware" in
         bios)
-            printf 'BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
+            printf 'yes | BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
             ;;
         uefi)
-            printf 'USE_EFI=1 BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
+            printf 'yes | USE_EFI=1 BOOTLOADER=grub setup-disk -m sys %s\n' "$_real_dev"
             ;;
         *)
             echo "disk-prep: unsupported firmware mode [$_firmware] (expected bios|uefi)" >&2

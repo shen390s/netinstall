@@ -78,8 +78,8 @@ GOOD_ID="$tmpdir/ata-Good_SSD_SERIAL"
 WRONG_ID="$tmpdir/zzz-Wrong_SSD"
 MISSING_ID="$tmpdir/ata-No_Such_Disk"
 
-bios_expected='BOOTLOADER=grub setup-disk -m sys /dev/sda'
-uefi_expected='USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/sda'
+bios_expected='yes | BOOTLOADER=grub setup-disk -m sys /dev/sda'
+uefi_expected='yes | USE_EFI=1 BOOTLOADER=grub setup-disk -m sys /dev/sda'
 
 # ---------------------------------------------------------------------------
 # (1) valid by-id target + bios -> setup-disk -m sys + BIOS bootloader
