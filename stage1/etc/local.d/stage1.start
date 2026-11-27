@@ -58,6 +58,11 @@ stage1_firstboot() {
     # writes to the disk), which needs a writable root. Remount rw.
     mount -o remount,rw / 2>/dev/null || true
 
+    # Bring up DHCP on eth0 so reinstall.sh can reach the repository; the
+    # freshly-installed system has the interface down and no persisted lease.
+    ip link set eth0 up 2>/dev/null || true
+    udhcpc -i eth0 -q -n 2>/dev/null || true
+
     # 1. Config must be present and accessible; otherwise fail closed.
     [ -r "$_config" ] || {
         stage1_log "config not found or not accessible: $_config"
