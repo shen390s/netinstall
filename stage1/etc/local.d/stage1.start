@@ -54,6 +54,10 @@ stage1_firstboot() {
     _adapter=${NETINSTALL_ADAPTER:-/usr/local/sbin/reinstall-adapter}
     _reinstall=${NETINSTALL_REINSTALL:-/usr/local/sbin/reinstall.sh}
 
+    # The installed root can come up mounted ro; reinstall.sh runs apk (and
+    # writes to the disk), which needs a writable root. Remount rw.
+    mount -o remount,rw / 2>/dev/null || true
+
     # 1. Config must be present and accessible; otherwise fail closed.
     [ -r "$_config" ] || {
         stage1_log "config not found or not accessible: $_config"
