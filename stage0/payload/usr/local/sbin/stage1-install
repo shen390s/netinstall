@@ -66,7 +66,8 @@ cp $_config $_sysroot/etc/netinstall/config.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $_sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $_sysroot/etc/local.d/stage1.start
 chmod +x $_sysroot/etc/local.d/stage1.start
-ln -s /etc/init.d/local $_sysroot/etc/runlevels/default/local
+rm -f $_sysroot/etc/local.d/stage0.start
+ln -sf /etc/init.d/local $_sysroot/etc/runlevels/default/local
 EOF
 }
 

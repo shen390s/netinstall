@@ -88,7 +88,8 @@ cp $CONFIG $sysroot/etc/netinstall/config.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $sysroot/etc/local.d/stage1.start
 chmod +x $sysroot/etc/local.d/stage1.start
-ln -s /etc/init.d/local $sysroot/etc/runlevels/default/local
+rm -f $sysroot/etc/local.d/stage0.start
+ln -sf /etc/init.d/local $sysroot/etc/runlevels/default/local
 EOF
 )
 
@@ -124,7 +125,9 @@ EOF
     assert_contains "plan makes firstboot executable" \
         "chmod +x $sysroot/etc/local.d/stage1.start" "$plan"
     assert_contains "plan enables OpenRC local" \
-        "ln -s /etc/init.d/local $sysroot/etc/runlevels/default/local" "$plan"
+        "ln -sf /etc/init.d/local $sysroot/etc/runlevels/default/local" "$plan"
+    assert_contains "plan removes the stage0 boot hook" \
+        "rm -f $sysroot/etc/local.d/stage0.start" "$plan"
 
     # (config overridable) no positional config -> NETINSTALL_CONFIG default.
     NETINSTALL_CONFIG="$CONFIG"
