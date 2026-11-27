@@ -14,6 +14,7 @@ Uses only the Python 3 standard library (json/pathlib/sys). It:
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -21,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 NETINSTALL_DIR = REPO_ROOT / "stage0" / "payload" / "etc" / "netinstall"
 SCHEMA_PATH = NETINSTALL_DIR / "config.schema.json"
 CATALOG_PATH = NETINSTALL_DIR / "os-catalog.json"
+REINSTALL_PATH = REPO_ROOT / "reinstall" / "reinstall.sh"
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +319,55 @@ def check_catalog_argv_syntax(catalog):
     assert "--img" in dd_argv
 
 
+def parse_reinstall_usage(path):
+    """Extract {distro: [versions]} from reinstall.sh's usage heredoc.
+
+    The `usage_and_exit()` heredoc lists one distro per line, e.g.
+        debian      9|10|11|12|13
+        arch
+        windows     --image-name="..." --lang=xx-yy
+    A distro with no numeric version list is version-less (any version is OK).
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    match = re.search(r"usage_and_exit\(\)\s*\{.*?cat <<EOF\n(.*?)\nEOF", text, re.S)
+    assert match, f"reinstall.sh usage heredoc not found in {path}"
+    usage = match.group(1)
+
+    distros = {}
+    for line in usage.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("Usage:", "Options:", "[")):
+            continue
+        parts = line.split(None, 1)
+        distro = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+        # The version list (if any) is the leading token before any flag.
+        ver_token = rest.split(None, 1)[0] if rest else ""
+        if ver_token and not ver_token.startswith(("--", "[")):
+            versions = ver_token.split("|")
+        else:
+            versions = []
+        distros.setdefault(distro, versions)
+    return distros
+
+
+def check_catalog_matches_reinstall(catalog, reinstall_path):
+    """Every catalog distro/version must be supported by the pinned reinstall.sh."""
+    supported = parse_reinstall_usage(reinstall_path)
+    for entry in catalog["entries"]:
+        distro = entry["distro"]
+        version = entry["version"]
+        assert distro in supported, \
+            f"catalog distro {distro!r} is not in reinstall.sh usage"
+        if not supported[distro]:
+            continue  # version-less distro (arch/windows/dd/...): any version is fine
+        if version in supported[distro]:
+            continue
+        base = version.split("-")[0]  # strip e.g. "-minimal" flag suffix
+        assert base in supported[distro], \
+            f"catalog {distro} version {version!r} (base {base!r}) not in reinstall.sh usage {supported[distro]}"
+
+
 def main():
     schema = load_json(SCHEMA_PATH)
     catalog = load_json(CATALOG_PATH)
@@ -337,6 +388,8 @@ def main():
          lambda: check_catalog(catalog)),
         ("os-catalog argv syntax matches reinstall.sh",
          lambda: check_catalog_argv_syntax(catalog)),
+        ("os-catalog distro/version matches reinstall.sh usage",
+         lambda: check_catalog_matches_reinstall(catalog, REINSTALL_PATH)),
     ]
 
     failures = 0
