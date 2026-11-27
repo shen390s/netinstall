@@ -137,7 +137,16 @@ cat > "$fakebin/setup-disk" <<'EOF'
 #!/bin/sh
 printf '%s\n' "setup-disk $*" >> "$FAKE_LOG"
 EOF
-chmod +x "$fakebin/setup-disk"
+cat > "$fakebin/lsblk" <<'EOF'
+#!/bin/sh
+# Simulate the freshly-installed disk: sda1 (boot) + sda2 (root) are ext4.
+printf 'sda1 ext4\nsda2 ext4\n'
+EOF
+cat > "$fakebin/mount" <<'EOF'
+#!/bin/sh
+printf '%s\n' "mount $*" >> "$FAKE_LOG"
+EOF
+chmod +x "$fakebin/setup-disk" "$fakebin/lsblk" "$fakebin/mount"
 
 export FAKE_LOG="$fakelog"
 export PATH="$fakebin:$PATH"
@@ -155,6 +164,8 @@ disk_prep_run "$GOOD_ID" bios "$tmpdir" > "$tmpdir/exec.out" 2>"$tmpdir/exec.err
 assert_return_ok "non-dry-run wrapper returns 0" "$st"
 assert_contains "non-dry-run executes setup-disk" \
     "setup-disk -m sys /dev/sda" "$(cat "$fakelog")"
+assert_contains "non-dry-run re-mounts the root partition" \
+    "mount /dev/sda2 /mnt" "$(cat "$fakelog")"
 
 rm -rf "$tmpdir" "$fakebin"
 

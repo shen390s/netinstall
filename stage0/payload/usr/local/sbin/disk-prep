@@ -109,15 +109,46 @@ disk_prep_plan() {
 # Thin wrapper: execute (or, with DRY_RUN=1, only print) the generated plan
 # ---------------------------------------------------------------------------
 
+# disk_prep_remount <disk_id>
+# setup-disk -m sys unmounts the installed root before it returns, so the
+# stage1-install injection into the sysroot (/mnt) would otherwise write into
+# the unmounted directory and be lost on reboot. Re-mount the root partition
+# (the last ext4 partition on the target disk) to /mnt. Returns 0 on success.
+disk_prep_remount() {
+    _disk_id=${1:-}
+    [ -n "$_disk_id" ] || return 1
+
+    _link_target=$(readlink "$_disk_id" 2>/dev/null)
+    if [ -n "$_link_target" ]; then
+        _dev=${_link_target##*/}
+    else
+        case "$_disk_id" in
+            /dev/*) _dev=${_disk_id#/dev/} ;;
+            *) return 1 ;;
+        esac
+    fi
+
+    _root=$(lsblk -rno NAME,FSTYPE "/dev/$_dev" 2>/dev/null \
+        | awk '$2=="ext4"{print $1}' | tail -1)
+    [ -n "$_root" ] || {
+        echo "disk-prep: no ext4 root partition found on /dev/$_dev" >&2
+        return 1
+    }
+    mount "/dev/$_root" /mnt
+}
+
 # disk_prep_run <disk_id> <firmware> [by_id_dir]
-# Plan, print, then execute — unless DRY_RUN=1, which prints only.
+# Plan, print, then execute — unless DRY_RUN=1, which prints only. After a real
+# run, re-mount the installed root so the next step (stage1-install) writes to
+# the disk rather than the unmounted sysroot directory.
 disk_prep_run() {
     _plan=$(disk_prep_plan "$@") || return $?
     printf '%s\n' "$_plan"
     if [ "${DRY_RUN:-0}" = 1 ]; then
         return 0
     fi
-    printf '%s\n' "$_plan" | sh -e
+    printf '%s\n' "$_plan" | sh -e || return $?
+    disk_prep_remount "$1"
 }
 
 # Run as a command only when invoked as `disk-prep` (not when sourced by a test).
