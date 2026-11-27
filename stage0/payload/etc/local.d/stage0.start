@@ -2,6 +2,11 @@
 # stage0 boot hook (OpenRC local.d): take over the console and launch the
 # installation menu directly, bypassing the login prompt.
 
+# Guard: this file can leak into an installed stage1 system via setup-disk's
+# lbu backup (which copies /etc). stage0-main exists only in stage0, so exit
+# cleanly when it is absent rather than exec a missing binary.
+[ -x /usr/local/sbin/stage0-main ] || exit 0
+
 export TERM=linux
 
 # Stop the login prompts so the installer owns the console. The `local` service

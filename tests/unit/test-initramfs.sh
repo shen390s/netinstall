@@ -117,6 +117,7 @@ if [ -r "$hook_file" ]; then
     hook=$(cat "$hook_file")
     pass "boot hook file is present"
     assert_contains "hook defaults TERM to linux" "export TERM=linux" "$hook"
+    assert_contains "hook guards against running in stage1" "[ -x /usr/local/sbin/stage0-main ] || exit 0" "$hook"
     assert_contains "hook auto-detects linux for VGA consoles" "tty[0-9]*) _term=linux" "$hook"
     assert_contains "hook auto-detects vt100 for serial consoles" "*) _term=vt100" "$hook"
     assert_contains "hook sizes the terminal before dialog" "timeout 5 resize" "$hook"
