@@ -145,10 +145,14 @@ stage0_rescue() {
 # Reboot into the disk-installed stage1 (requirement 7.3). Final step.
 stage0_reboot() {
     if [ "${DRY_RUN:-0}" = 1 ]; then
-        printf '[dry-run] reboot: %s\n' "$STAGE0_REBOOT"
+        printf '[dry-run] reboot: %s -f\n' "$STAGE0_REBOOT"
         return 0
     fi
-    "$STAGE0_REBOOT"
+    # -f forces a direct reboot() syscall. Without it, busybox reboot first
+    # signals init (PID 1) to run the shutdown sequence; in this minimal netboot
+    # system that sequence can end with init exiting, which panics the kernel
+    # with "Attempted to kill init!".
+    "$STAGE0_REBOOT" -f
 }
 
 # ---------------------------------------------------------------------------

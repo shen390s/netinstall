@@ -222,8 +222,8 @@ case "$dry_flat" in
         pass "dry-run emits ordered menu -> disk-prep -> stage1-install -> reboot" ;;
     *) fail "dry-run ordered emission" "out of order: $dry_flat" ;;
 esac
-assert_eq "dry-run ends with reboot" \
-    "$(printf '[dry-run] reboot: %s' "$STAGE0_REBOOT")" "$(tail -n 1 "$tmpdir/dry.out")"
+assert_eq "dry-run ends with forced reboot" \
+    "$(printf '[dry-run] reboot: %s -f' "$STAGE0_REBOOT")" "$(tail -n 1 "$tmpdir/dry.out")"
 
 rm -rf "$tmpdir"
 
