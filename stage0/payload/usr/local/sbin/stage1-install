@@ -32,6 +32,8 @@
 
 STAGE1_INSTALL_ROOT=${STAGE1_INSTALL_ROOT:-/}
 STAGE1_INSTALL_ADAPTER=${STAGE1_INSTALL_ADAPTER:-/usr/local/sbin/reinstall-adapter}
+STAGE1_INSTALL_PROXY_LIB=${STAGE1_INSTALL_PROXY_LIB:-/usr/local/sbin/lib/proxy.sh}
+STAGE1_INSTALL_OS_CATALOG=${STAGE1_INSTALL_OS_CATALOG:-/etc/netinstall/os-catalog.json}
 NETINSTALL_CONFIG=${NETINSTALL_CONFIG:-/etc/netinstall/config.json}
 
 # stage1_install_plan <sysroot> [config]
@@ -52,9 +54,11 @@ stage1_install_plan() {
     [ -r "$_config" ] || { printf '%s\n' "stage1-install: missing config: $_config" >&2; return 1; }
     [ -r "$STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh" ] || { printf '%s\n' "stage1-install: missing proxy profile: $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh" >&2; return 1; }
     [ -r "$STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" ] || { printf '%s\n' "stage1-install: missing firstboot: $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_PROXY_LIB" ] || { printf '%s\n' "stage1-install: missing proxy helper: $STAGE1_INSTALL_PROXY_LIB" >&2; return 1; }
+    [ -r "$STAGE1_INSTALL_OS_CATALOG" ] || { printf '%s\n' "stage1-install: missing os catalog: $STAGE1_INSTALL_OS_CATALOG" >&2; return 1; }
 
     cat <<EOF
-mkdir -p $_sysroot/usr/local/sbin $_sysroot/etc/netinstall $_sysroot/etc/profile.d $_sysroot/etc/local.d $_sysroot/etc/runlevels/default
+mkdir -p $_sysroot/usr/local/sbin/lib $_sysroot/etc/netinstall $_sysroot/etc/profile.d $_sysroot/etc/local.d $_sysroot/etc/runlevels/default
 cp $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh $_sysroot/usr/local/sbin/reinstall.sh
 chmod +x $_sysroot/usr/local/sbin/reinstall.sh
 ( cd $_sysroot/usr/local/sbin && patch -p2 -i $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch )
@@ -62,7 +66,9 @@ cp $STAGE1_INSTALL_ROOT/reinstall/trans.sh $_sysroot/usr/local/sbin/trans.sh
 cp $STAGE1_INSTALL_ROOT/reinstall/initrd-network.sh $_sysroot/usr/local/sbin/initrd-network.sh
 cp $STAGE1_INSTALL_ADAPTER $_sysroot/usr/local/sbin/reinstall-adapter
 chmod +x $_sysroot/usr/local/sbin/reinstall-adapter
+cp $STAGE1_INSTALL_PROXY_LIB $_sysroot/usr/local/sbin/lib/proxy.sh
 cp $_config $_sysroot/etc/netinstall/config.json
+cp $STAGE1_INSTALL_OS_CATALOG $_sysroot/etc/netinstall/os-catalog.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $_sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $_sysroot/etc/local.d/stage1.start
 chmod +x $_sysroot/etc/local.d/stage1.start

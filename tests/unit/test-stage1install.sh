@@ -24,7 +24,9 @@ STAGE1_INSTALL="$REPO_ROOT/stage0/payload/usr/local/sbin/stage1-install"
 # Overridable seams (env) — set before sourcing so the defaults resolve.
 STAGE1_INSTALL_ROOT="$REPO_ROOT"
 STAGE1_INSTALL_ADAPTER="$REPO_ROOT/stage0/payload/usr/local/sbin/reinstall-adapter"
-export STAGE1_INSTALL_ROOT STAGE1_INSTALL_ADAPTER
+STAGE1_INSTALL_PROXY_LIB="$REPO_ROOT/stage0/payload/usr/local/sbin/lib/proxy.sh"
+STAGE1_INSTALL_OS_CATALOG="$REPO_ROOT/stage0/payload/etc/netinstall/os-catalog.json"
+export STAGE1_INSTALL_ROOT STAGE1_INSTALL_ADAPTER STAGE1_INSTALL_PROXY_LIB STAGE1_INSTALL_OS_CATALOG
 
 # Source the component under test. (RED phase: this file does not exist yet, so
 # `stage1_install_plan`/`stage1_install_run` stay undefined and the behavioural
@@ -76,7 +78,7 @@ run_tests() {
     # (1) + (2) the exact injection plan
     # -----------------------------------------------------------------------
     expected_plan=$(cat <<EOF
-mkdir -p $sysroot/usr/local/sbin $sysroot/etc/netinstall $sysroot/etc/profile.d $sysroot/etc/local.d $sysroot/etc/runlevels/default
+mkdir -p $sysroot/usr/local/sbin/lib $sysroot/etc/netinstall $sysroot/etc/profile.d $sysroot/etc/local.d $sysroot/etc/runlevels/default
 cp $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh $sysroot/usr/local/sbin/reinstall.sh
 chmod +x $sysroot/usr/local/sbin/reinstall.sh
 ( cd $sysroot/usr/local/sbin && patch -p2 -i $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch )
@@ -84,7 +86,9 @@ cp $STAGE1_INSTALL_ROOT/reinstall/trans.sh $sysroot/usr/local/sbin/trans.sh
 cp $STAGE1_INSTALL_ROOT/reinstall/initrd-network.sh $sysroot/usr/local/sbin/initrd-network.sh
 cp $STAGE1_INSTALL_ADAPTER $sysroot/usr/local/sbin/reinstall-adapter
 chmod +x $sysroot/usr/local/sbin/reinstall-adapter
+cp $STAGE1_INSTALL_PROXY_LIB $sysroot/usr/local/sbin/lib/proxy.sh
 cp $CONFIG $sysroot/etc/netinstall/config.json
+cp $STAGE1_INSTALL_OS_CATALOG $sysroot/etc/netinstall/os-catalog.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $sysroot/etc/local.d/stage1.start
 chmod +x $sysroot/etc/local.d/stage1.start
@@ -106,8 +110,12 @@ EOF
         "$sysroot/usr/local/sbin/initrd-network.sh" "$plan"
     assert_contains "adapter -> usr/local/sbin" \
         "$sysroot/usr/local/sbin/reinstall-adapter" "$plan"
+    assert_contains "proxy helper -> usr/local/sbin/lib" \
+        "$sysroot/usr/local/sbin/lib/proxy.sh" "$plan"
     assert_contains "config -> etc/netinstall" \
         "$sysroot/etc/netinstall/config.json" "$plan"
+    assert_contains "os catalog -> etc/netinstall" \
+        "$sysroot/etc/netinstall/os-catalog.json" "$plan"
     assert_contains "proxy profile -> etc/profile.d" \
         "$sysroot/etc/profile.d/99-proxy.sh" "$plan"
     assert_contains "firstboot -> etc/local.d" \
