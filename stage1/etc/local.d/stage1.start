@@ -109,13 +109,14 @@ stage1_firstboot() {
         eval "$_env_block"
     fi
 
-    # 5. Launch the pinned reinstall bundle with the resolved argv, detached
-    #    from the local service so its start timeout cannot kill the long
-    #    download/write (reinstall.sh reboots the machine when it finishes).
+    # 5. Launch the pinned reinstall bundle with the resolved argv in the
+    #    foreground, its output on the serial console. The OpenRC local service
+    #    runs local.d scripts with `keyword -timeout` (no timeout), so a long
+    #    install is fine; reinstall.sh reboots the machine when it finishes.
     #    DRY_RUN=1 stops here (emit-only, no launch).
     [ "${DRY_RUN:-0}" = 1 ] && return 0
     eval "set -- $_argv_line"
-    "$_reinstall" "$@" >>"$NETINSTALL_SERIAL_DEV" 2>&1 &
+    exec "$_reinstall" "$@" >>"$NETINSTALL_SERIAL_DEV" 2>&1
 }
 
 # Run only when executed by OpenRC as `stage1.start` (not when sourced by a
