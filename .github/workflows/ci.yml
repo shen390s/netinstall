@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  config:
+    name: Config + catalog validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate schema and os-catalog against reinstall.sh
+        run: python3 tests/unit/test-config.py
+
+  unit:
+    name: Unit test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the unit suite
+        run: sh tests/run-unit.sh

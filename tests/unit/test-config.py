@@ -336,8 +336,12 @@ def parse_reinstall_usage(path):
     distros = {}
     for line in usage.splitlines():
         line = line.strip()
-        if not line or line.startswith(("Usage:", "Options:", "[")):
+        if not line or line.startswith(("Options:", "[")):
             continue
+        if line.startswith("Usage:"):
+            # The first distro (anolis) shares the "Usage:" line:
+            #   "Usage: $reinstall_____ anolis 7|8|23"
+            line = line.split(None, 2)[2]
         parts = line.split(None, 1)
         distro = parts[0]
         rest = parts[1] if len(parts) > 1 else ""

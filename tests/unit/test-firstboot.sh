@@ -66,6 +66,8 @@ STUB_REINSTALL="$tmpdir/stub-reinstall"
 REINSTALL_MARKER="$tmpdir/reinstall-ran"
 ADAPTER_ARG_MARKER="$tmpdir/adapter-arg"
 SERIAL_LOG="$tmpdir/serial.log"
+STUB_REBOOT="$tmpdir/stub-reboot"
+REBOOT_MARKER="$tmpdir/reboot-ran"
 
 cat > "$STUB_ADAPTER" <<EOF
 #!/bin/sh
@@ -89,7 +91,13 @@ printf 'EXECUTED\n' > "$REINSTALL_MARKER"
 exit 0
 EOF
 
-chmod +x "$STUB_ADAPTER" "$STUB_ADAPTER_FAIL" "$STUB_REINSTALL"
+cat > "$STUB_REBOOT" <<EOF
+#!/bin/sh
+printf 'REBOOTED\n' > "$REBOOT_MARKER"
+exit 0
+EOF
+
+chmod +x "$STUB_ADAPTER" "$STUB_ADAPTER_FAIL" "$STUB_REINSTALL" "$STUB_REBOOT"
 
 # ---------------------------------------------------------------------------
 # Behavioural tests (only meaningful once the component exists).
@@ -100,7 +108,8 @@ run_tests() {
     NETINSTALL_ADAPTER="$STUB_ADAPTER"
     NETINSTALL_REINSTALL="$STUB_REINSTALL"
     NETINSTALL_SERIAL_DEV="$SERIAL_LOG"
-    export NETINSTALL_CONFIG NETINSTALL_ADAPTER NETINSTALL_REINSTALL NETINSTALL_SERIAL_DEV
+    NETINSTALL_REBOOT="$STUB_REBOOT"
+    export NETINSTALL_CONFIG NETINSTALL_ADAPTER NETINSTALL_REINSTALL NETINSTALL_SERIAL_DEV NETINSTALL_REBOOT
     unset http_proxy https_proxy all_proxy no_proxy github_proxy
 
     # --- (1) valid config + stubbed adapter, DRY_RUN=1 --------------------
@@ -170,6 +179,25 @@ run_tests() {
         fail "DRY_RUN=1 never executes real reinstall.sh" "marker present"
     else
         pass "DRY_RUN=1 never executes real reinstall.sh"
+    fi
+
+    # --- (6) valid config + DRY_RUN=0 -> reinstall.sh runs, then reboot -----
+    rm -f "$REINSTALL_MARKER" "$REBOOT_MARKER"
+    NETINSTALL_CONFIG="$CONFIG_GOOD"
+    NETINSTALL_ADAPTER="$STUB_ADAPTER"
+    DRY_RUN=0
+    stage1_firstboot > "$tmpdir/out6" 2>"$tmpdir/err6"
+    st=$?
+    assert_return_ok "firstboot(valid config, DRY_RUN=0) returns 0" "$st"
+    if [ -e "$REINSTALL_MARKER" ]; then
+        pass "firstboot runs reinstall.sh on success"
+    else
+        fail "firstboot runs reinstall.sh on success" "marker absent"
+    fi
+    if [ -e "$REBOOT_MARKER" ]; then
+        pass "firstboot reboots after reinstall.sh succeeds"
+    else
+        fail "firstboot reboots after reinstall.sh succeeds" "marker absent"
     fi
 }
 
