@@ -11,7 +11,7 @@
 #   DeploymentConfig        -> <sysroot>/etc/netinstall/config.json
 #   proxy profile           -> <sysroot>/etc/profile.d/99-proxy.sh
 #   firstboot hook          -> <sysroot>/etc/local.d/stage1.start (made executable)
-#   OpenRC `local` service  -> enabled via chroot `rc-update add local default`
+#   OpenRC `local` service  -> enabled via a runlevel symlink (no chroot/rc-update)
 #
 # Pure testable core: stage1_install_plan <sysroot> [config] emits the exact
 # source->destination + patch + enable command map on stdout. The thin wrapper
@@ -54,7 +54,7 @@ stage1_install_plan() {
     [ -r "$STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" ] || { printf '%s\n' "stage1-install: missing firstboot: $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start" >&2; return 1; }
 
     cat <<EOF
-mkdir -p $_sysroot/usr/local/sbin $_sysroot/etc/netinstall $_sysroot/etc/profile.d $_sysroot/etc/local.d
+mkdir -p $_sysroot/usr/local/sbin $_sysroot/etc/netinstall $_sysroot/etc/profile.d $_sysroot/etc/local.d $_sysroot/etc/runlevels/default
 cp $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh $_sysroot/usr/local/sbin/reinstall.sh
 chmod +x $_sysroot/usr/local/sbin/reinstall.sh
 ( cd $_sysroot/usr/local/sbin && patch -p2 -i $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch )
@@ -66,7 +66,7 @@ cp $_config $_sysroot/etc/netinstall/config.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $_sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $_sysroot/etc/local.d/stage1.start
 chmod +x $_sysroot/etc/local.d/stage1.start
-chroot $_sysroot /sbin/rc-update add local default
+ln -s /etc/init.d/local $_sysroot/etc/runlevels/default/local
 EOF
 }
 

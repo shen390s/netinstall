@@ -76,7 +76,7 @@ run_tests() {
     # (1) + (2) the exact injection plan
     # -----------------------------------------------------------------------
     expected_plan=$(cat <<EOF
-mkdir -p $sysroot/usr/local/sbin $sysroot/etc/netinstall $sysroot/etc/profile.d $sysroot/etc/local.d
+mkdir -p $sysroot/usr/local/sbin $sysroot/etc/netinstall $sysroot/etc/profile.d $sysroot/etc/local.d $sysroot/etc/runlevels/default
 cp $STAGE1_INSTALL_ROOT/reinstall/reinstall.sh $sysroot/usr/local/sbin/reinstall.sh
 chmod +x $sysroot/usr/local/sbin/reinstall.sh
 ( cd $sysroot/usr/local/sbin && patch -p2 -i $STAGE1_INSTALL_ROOT/reinstall/patches/proxy-env.patch )
@@ -88,7 +88,7 @@ cp $CONFIG $sysroot/etc/netinstall/config.json
 cp $STAGE1_INSTALL_ROOT/stage1/etc/profile.d/99-proxy.sh $sysroot/etc/profile.d/99-proxy.sh
 cp $STAGE1_INSTALL_ROOT/stage1/etc/local.d/stage1.start $sysroot/etc/local.d/stage1.start
 chmod +x $sysroot/etc/local.d/stage1.start
-chroot $sysroot /sbin/rc-update add local default
+ln -s /etc/init.d/local $sysroot/etc/runlevels/default/local
 EOF
 )
 
@@ -124,7 +124,7 @@ EOF
     assert_contains "plan makes firstboot executable" \
         "chmod +x $sysroot/etc/local.d/stage1.start" "$plan"
     assert_contains "plan enables OpenRC local" \
-        "chroot $sysroot /sbin/rc-update add local default" "$plan"
+        "ln -s /etc/init.d/local $sysroot/etc/runlevels/default/local" "$plan"
 
     # (config overridable) no positional config -> NETINSTALL_CONFIG default.
     NETINSTALL_CONFIG="$CONFIG"
@@ -181,20 +181,16 @@ EOF
     STAGE1_INSTALL_ROOT="$REPO_ROOT"
 
     # -----------------------------------------------------------------------
-    # (bonus) non-dry-run wrapper copies + invokes patch/chroot (stubbed)
+    # (bonus) non-dry-run wrapper copies + invokes patch (stubbed) + enables local
     # -----------------------------------------------------------------------
     fakebin=$(mktemp -d) || exit 1
     fakelog="$tmpdir/exec.log"
     : > "$fakelog"
-    cat > "$fakebin/chroot" <<'EOF'
-#!/bin/sh
-printf 'chroot %s\n' "$*" >> "$FAKE_LOG"
-EOF
     cat > "$fakebin/patch" <<'EOF'
 #!/bin/sh
 printf 'patch %s\n' "$*" >> "$FAKE_LOG"
 EOF
-    chmod +x "$fakebin/chroot" "$fakebin/patch"
+    chmod +x "$fakebin/patch"
     export FAKE_LOG="$fakelog"
 
     rm -rf "$sysroot"; mkdir -p "$sysroot"
@@ -225,8 +221,9 @@ EOF
 
     assert_contains "wrapper invoked patch against the injected reinstall.sh" \
         "patch -p2 -i" "$(cat "$fakelog")"
-    assert_contains "wrapper invoked chroot rc-update add local" \
-        "chroot $sysroot /sbin/rc-update add local default" "$(cat "$fakelog")"
+    [ -L "$sysroot/etc/runlevels/default/local" ] \
+        && pass "wrapper created the local runlevel symlink" \
+        || fail "wrapper created the local runlevel symlink" "missing $sysroot/etc/runlevels/default/local"
 
     rm -rf "$fakebin"
 }
